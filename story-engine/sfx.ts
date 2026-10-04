@@ -1,56 +1,64 @@
 /**
- * Predefined sound libraries. The story engine (and any future LLM output)
- * may only reference these identifiers. Anything else fails validation.
+ * Approved sound vocabulary. The AI may ONLY pick from these lists — anything else
+ * is dropped during audio-script validation. No URLs, no invented assets.
  */
 
 export const SFX_IDS = [
-  'ANIMAL_ELEPHANT',
-  'ANIMAL_COW',
-  'ANIMAL_DOG',
-  'ANIMAL_CAT',
-  'ANIMAL_BIRD_CHIRP',
-  'ANIMAL_ROOSTER',
-  'ANIMAL_MONKEY',
-  'ANIMAL_FROG',
-  'DOOR_KNOCK',
-  'DOOR_CREAK',
+  'BIRDS',
+  'RAIN_LIGHT',
+  'RAIN_HEAVY',
+  'WIND',
   'FOOTSTEPS',
-  'BELL_TEMPLE',
-  'BELL_SMALL',
+  'FOOTSTEPS_RUNNING',
+  'DOOR_KNOCK',
+  'DOOR_OPEN',
+  'CAT_MEOW',
+  'DOG_BARK',
+  'ELEPHANT',
+  'LION',
+  'OWL',
+  'TRAIN',
+  'BELL',
+  'THUNDER_GENTLE',
   'MAGIC_SPARKLE',
-  'WHOOSH',
   'SPLASH',
-  'DRUM_DHOL',
+  'BRANCH_SNAP',
   'CLAP',
-  'GIGGLE',
-  'YAWN',
-  'THUNDER_SOFT',
-  'POP',
-  'BOING',
+  'LAUGHTER',
+  'FOREST_AMBIENCE',
+  'NIGHT_AMBIENCE',
+  'VILLAGE_AMBIENCE',
+  'CITY_AMBIENCE',
+  'WATER_STREAM',
+  'WAVES',
+  'CLOCK_TICK',
+  'OBJECT_DROP',
+  'WHOOSH_SOFT',
 ] as const;
 
 export type SfxId = (typeof SFX_IDS)[number];
 
-export const AMBIENCE_IDS = [
-  'VILLAGE_MORNING',
-  'FOREST_DAY',
-  'NIGHT_CRICKETS',
-  'RAIN_GENTLE',
-  'RIVER',
-  'FESTIVAL_CROWD',
-  'SKY_WIND',
-  'HOME_EVENING',
+/** Conceptual music moods for future, restrained music cues. */
+export const MUSIC_MOODS = [
+  'GENTLE',
+  'PLAYFUL',
+  'ADVENTURE',
+  'MYSTERY',
+  'MAGICAL',
+  'EMOTIONAL',
+  'VICTORY',
+  'BEDTIME',
 ] as const;
 
-export type AmbienceId = (typeof AMBIENCE_IDS)[number];
+export type MusicMood = (typeof MUSIC_MOODS)[number];
 
 const sfxSet = new Set<string>(SFX_IDS);
-const ambienceSet = new Set<string>(AMBIENCE_IDS);
+const moodSet = new Set<string>(MUSIC_MOODS);
 
-export function isAllowedSfx(id: string): id is SfxId {
-  return sfxSet.has(id);
+export function isAllowedSfx(id: unknown): id is SfxId {
+  return typeof id === 'string' && sfxSet.has(id);
 }
 
-export function isAllowedAmbience(id: string): id is AmbienceId {
-  return ambienceSet.has(id);
+export function isAllowedMusicMood(mood: unknown): mood is MusicMood {
+  return typeof mood === 'string' && moodSet.has(mood);
 }

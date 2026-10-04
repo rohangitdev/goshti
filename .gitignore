@@ -39,3 +39,15 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# secrets — never commit (.env.example is the template)
+.env
+.env.*
+!.env.example
+
+# story engine dev logs
+.story-logs/
+
+# supabase CLI local state
+supabase/.temp/
+supabase/.branches/

@@ -8,6 +8,7 @@ export type StoryRating = 1 | 2 | 3 | 4 | 5;
 export interface GoshtiStory {
   id: string;
   title: string;
+  /** 2–9 */
   age: ChildAge;
   ageBand: AgeBand;
   category: StoryCategory;
@@ -28,6 +29,7 @@ export interface GoshtiStory {
 export interface ChildProfile {
   id: string;
   name: string;
+  /** 2–9 */
   age: ChildAge;
 }
 

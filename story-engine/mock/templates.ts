@@ -1,15 +1,24 @@
-import type { AmbienceId, SfxId } from '../sfx';
-import type { EmotionBeat, HumourStyle, StoryCategory, StoryCharacter } from '../types';
+import type { StoryCategory } from '../categories';
+import type { VoiceStyle } from '../schemas';
+import type { SfxId } from '../sfx';
 
 /**
- * Hand-written placeholder story skeletons, one per category, used by the mock engine
- * so the full pipeline (plan → story → audio script → evaluation) can be exercised
- * end to end without a model.
+ * Hand-written placeholder story skeletons, one per category, used by the mock provider
+ * so the full pipeline can run end to end without a model (no GEMINI_API_KEY, tests,
+ * and the app's seed stories).
  */
+export interface MockCharacter {
+  id: string;
+  name: string;
+  description: string;
+  role: 'HERO' | 'FRIEND' | 'HELPER';
+  voiceStyle: VoiceStyle;
+}
+
 export interface MockTemplate {
   title: string;
   summary: string;
-  characters: StoryCharacter[];
+  characters: MockCharacter[];
   /** Opening sentence introducing the hero in their setting. */
   opening: string;
   setting: string;
@@ -22,9 +31,9 @@ export interface MockTemplate {
   resolution: string;
   closing: string;
   positiveValue: string;
-  emotionalArc: EmotionBeat[];
-  humourStyle: HumourStyle;
-  ambience: AmbienceId;
+  emotionalArc: string[];
+  humourStyle: string;
+  ambience: SfxId;
   heroSfx?: SfxId;
 }
 
@@ -43,18 +52,18 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     heroLine: 'मला तो आंबा हवाय! कसा बरं मिळेल?',
     attempts: [
       { text: 'गोलूने टाचा उंचावल्या, सोंड ताणली, अजून ताणली... पण आंबा अजून दूरच!' },
-      { text: 'मग त्याने झाड जोरात हलवलं. धप्प! पानं पडली, फुलं पडली, पण आंबा काही पडला नाही.', sfx: 'WHOOSH' },
+      { text: 'मग त्याने झाड जोरात हलवलं. धप्प! पानं पडली, फुलं पडली, पण आंबा काही पडला नाही.', sfx: 'WHOOSH_SOFT' },
     ],
     twist: 'तेवढ्यात वरून चिंकी खार म्हणाली, "गोलू, मी वर चढते. तू फक्त खाली नीट झेल!"',
-    twistSfx: 'ANIMAL_BIRD_CHIRP',
+    twistSfx: 'BIRDS',
     resolution:
       'चिंकी सरसर वर चढली, तिने आंबा तोडला, आणि गोलूने तो सोंडेत अलगद झेलला. मग दोघांनी तो गोड आंबा अर्धा-अर्धा वाटून खाल्ला.',
     closing: 'एकट्याला जमलं नाही, ते दोघांनी मिळून जमवलं.',
     positiveValue: 'मैत्री आणि एकमेकांना मदत',
-    emotionalArc: ['CURIOUS', 'EXCITED', 'WORRIED', 'SURPRISED', 'HAPPY'],
-    humourStyle: 'GENTLE',
-    ambience: 'FOREST_DAY',
-    heroSfx: 'ANIMAL_ELEPHANT',
+    emotionalArc: ['curiosity', 'excitement', 'mild worry', 'surprise', 'joy'],
+    humourStyle: 'gentle',
+    ambience: 'FOREST_AMBIENCE',
+    heroSfx: 'ELEPHANT',
   },
   adventure: {
     title: 'मीरा आणि लपलेला साकव',
@@ -78,10 +87,10 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
       'दोघं हळूहळू, सावधपणे साकवावरून पलीकडे गेले. वडाच्या झाडाखाली बसून त्यांनी संपूर्ण गाव पाहिलं. आकाश केशरी झालं होतं.',
     closing: 'घाई न करता नीट पाहिलं, तेव्हाच वाट सापडली.',
     positiveValue: 'धीर आणि सावधपणा',
-    emotionalArc: ['EXCITED', 'CURIOUS', 'WORRIED', 'BRAVE', 'HAPPY'],
-    humourStyle: 'GENTLE',
-    ambience: 'RIVER',
-    heroSfx: 'ANIMAL_DOG',
+    emotionalArc: ['excited', 'curious', 'worried', 'brave', 'happy'],
+    humourStyle: 'gentle',
+    ambience: 'WATER_STREAM',
+    heroSfx: 'DOG_BARK',
   },
   magic: {
     title: 'सई आणि जादूचा तांब्या',
@@ -96,7 +105,7 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     problem: 'पण तांब्याची जादू फक्त खऱ्या शब्दांनी चालते — आणि सईला ते शब्द माहीत नव्हते.',
     heroLine: 'तांब्या, तांब्या, आजीची फुलं परत फुलव ना!',
     attempts: [
-      { text: 'सई म्हणाली, "अबरा का डबरा!" तांब्यातून फक्त एक छोटा बुडबुडा निघाला — पॉप!', sfx: 'POP' },
+      { text: 'सई म्हणाली, "अबरा का डबरा!" तांब्यातून फक्त एक छोटा बुडबुडा निघाला — पॉप!', sfx: 'OBJECT_DROP' },
       { text: 'मग ती ओरडली, "जादू जादू, लवकर कर!" पण तांब्या गप्पच राहिला.' },
     ],
     twist: 'शेवटी सईने हळूच म्हटलं, "आजीला आनंद व्हावा म्हणून मला मदत करशील का, प्लीज?" आणि तांब्या चमकू लागला!',
@@ -105,9 +114,9 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
       'तांब्यातून चमचमतं पाणी निघालं, फुलांवर पडलं, आणि सगळी फुलं पुन्हा टवटवीत झाली. आजीने सईला घट्ट मिठी मारली.',
     closing: 'प्रेमाने बोललेले शब्द, हीच खरी जादू.',
     positiveValue: 'प्रेमाने, नम्रपणे बोलणं',
-    emotionalArc: ['CURIOUS', 'EXCITED', 'WORRIED', 'SURPRISED', 'HAPPY'],
-    humourStyle: 'SILLY_SOUNDS',
-    ambience: 'HOME_EVENING',
+    emotionalArc: ['curiosity', 'excitement', 'mild worry', 'surprise', 'joy'],
+    humourStyle: 'silly sounds',
+    ambience: 'VILLAGE_AMBIENCE',
   },
   funny: {
     title: 'बंड्या माकडाचा खारट लाडू',
@@ -122,18 +131,18 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     problem: 'पण घाईत बंड्याला साखर कुठली आणि मीठ कुठलं, हेच कळत नव्हतं!',
     heroLine: 'मी आत्ता, लगेच, सगळ्यात मोठा लाडू बनवणार!',
     attempts: [
-      { text: 'पहिला लाडू चाखताच बंड्याचं तोंड वाकडं झालं. शी! खारट खारट!', sfx: 'GIGGLE' },
-      { text: 'दुसऱ्या वेळी त्याने इतकं तूप घातलं की लाडू हातातून निसटला आणि टुणकन उडाला!', sfx: 'BOING' },
+      { text: 'पहिला लाडू चाखताच बंड्याचं तोंड वाकडं झालं. शी! खारट खारट!', sfx: 'LAUGHTER' },
+      { text: 'दुसऱ्या वेळी त्याने इतकं तूप घातलं की लाडू हातातून निसटला आणि टुणकन उडाला!', sfx: 'OBJECT_DROP' },
     ],
     twist: 'तेवढ्यात कासवआजोबा हळूहळू आले आणि म्हणाले, "घाई नको रे बाळा. आधी चव घे, मग घाल."',
     resolution:
       'बंड्याने हळूहळू, चव घेत घेत लाडू बनवला. जत्रेत सगळ्यांनी तो खाल्ला आणि म्हणाले, "वा! गोड गोड!"',
     closing: 'आणि त्या दिवसापासून बंड्या म्हणतो — आधी चव, मग घाई!',
     positiveValue: 'घाई न करता काम नीट करणं',
-    emotionalArc: ['EXCITED', 'SURPRISED', 'WORRIED', 'CALM', 'HAPPY'],
-    humourStyle: 'FUNNY_MISTAKES',
-    ambience: 'VILLAGE_MORNING',
-    heroSfx: 'ANIMAL_MONKEY',
+    emotionalArc: ['excited', 'surprised', 'worried', 'calm', 'happy'],
+    humourStyle: 'funny mistakes',
+    ambience: 'VILLAGE_AMBIENCE',
+    heroSfx: 'LAUGHTER',
   },
   mystery: {
     title: 'ग्रंथालयातले छोटे ठसे',
@@ -148,18 +157,18 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     problem: 'रोज सकाळी पुस्तकं जमिनीवर पडलेली दिसायची, पण कोणीच दिसायचं नाही.',
     heroLine: 'मनी, आज आपण हे रहस्य सोडवायचंच!',
     attempts: [
-      { text: 'रियाने खिडकीतून डोकावून पाहिलं. आत फक्त अंधार... आणि टक-टक असा आवाज.', sfx: 'DOOR_CREAK' },
+      { text: 'रियाने खिडकीतून डोकावून पाहिलं. आत फक्त अंधार... आणि टक-टक असा आवाज.', sfx: 'DOOR_OPEN' },
       { text: 'मग तिने जमिनीवर थोडं पीठ पसरलं. सकाळी पिठावर छोटे-छोटे पंजांचे ठसे दिसले!' },
     ],
     twist: 'ठसे थेट कपाटामागे जात होते. रियाने हळूच पाहिलं — तिथे एक छोटी खार होती, पुस्तकांमागे शेंगदाणे लपवत!',
-    twistSfx: 'ANIMAL_CAT',
+    twistSfx: 'CAT_MEOW',
     resolution:
       'रिया आणि मनीने खिडकीजवळ खारीसाठी एक उबदार खोकं ठेवलं. त्या दिवसापासून पुस्तकं जागेवर राहिली, आणि खारीला नवं घर मिळालं.',
     closing: 'नीट पाहिलं, विचार केला, आणि रहस्य सुटलं.',
     positiveValue: 'निरीक्षण आणि दयाळूपणा',
-    emotionalArc: ['CURIOUS', 'WORRIED', 'CURIOUS', 'SURPRISED', 'HAPPY'],
-    humourStyle: 'GENTLE',
-    ambience: 'NIGHT_CRICKETS',
+    emotionalArc: ['curious', 'worried', 'curious', 'surprised', 'happy'],
+    humourStyle: 'gentle',
+    ambience: 'NIGHT_AMBIENCE',
   },
   bedtime: {
     title: 'पिंटू ससा आणि तारे',
@@ -175,23 +184,23 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     heroLine: 'एक... दोन... तीन... अरेच्चा, किती तारे!',
     attempts: [
       { text: 'एक, दोन, तीन... बारा... तेरा... अरे, कुठपर्यंत मोजलं होतं?' },
-      { text: 'पुन्हा एक, दोन, तीन... तेवढ्यात एक तारा लुकलुकला, आणि पिंटू पुन्हा विसरला.', sfx: 'YAWN' },
+      { text: 'पुन्हा एक, दोन, तीन... तेवढ्यात एक तारा लुकलुकला, आणि पिंटू पुन्हा विसरला.', sfx: 'OWL' },
     ],
     twist: 'तेव्हा चांदोबा हळूच म्हणाला, "पिंटू, तारे मोजायचे नसतात बाळा. ते तुझ्यावर लक्ष ठेवतात, तू सुखाने झोपावंस म्हणून."',
     resolution:
       'पिंटूने आईच्या उबदार कुशीत डोकं ठेवलं. डोळे हळूहळू मिटले. आणि ताऱ्यांच्या मंद प्रकाशात तो शांत झोपी गेला.',
     closing: 'आता तूही डोळे मिट. तारे आहेत ना, लक्ष ठेवायला. शुभ रात्री.',
     positiveValue: 'शांतता आणि सुरक्षितपणाची भावना',
-    emotionalArc: ['CALM', 'CURIOUS', 'CALM', 'SLEEPY'],
-    humourStyle: 'NONE',
-    ambience: 'NIGHT_CRICKETS',
+    emotionalArc: ['calm', 'curious', 'calm', 'sleepy'],
+    humourStyle: 'none',
+    ambience: 'NIGHT_AMBIENCE',
   },
   festivals: {
     title: 'ओमचा वाकडा आकाशकंदील',
     summary: 'दिवाळीत स्वतः कंदील बनवण्याची धडपड.',
     characters: [
       { id: 'om', name: 'ओम', description: 'उत्साही मुलगा', role: 'HERO', voiceStyle: 'SMALL_CHILD' },
-      { id: 'tai', name: 'ताई', description: 'ओमची मोठी बहीण', role: 'HELPER', voiceStyle: 'AAJI' },
+      { id: 'tai', name: 'ताई', description: 'ओमची मोठी बहीण', role: 'HELPER', voiceStyle: 'OLDER_CHILD' },
     ],
     opening: 'दिवाळी जवळ आली होती. घराघरात फराळाचा सुगंध दरवळत होता.',
     setting: 'दिवाळीच्या आधीचं घर आणि अंगण',
@@ -199,7 +208,7 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     problem: 'पण कागद फाटायचा आणि बांबूच्या काड्या सारख्या सुटायच्या.',
     heroLine: 'मी बनवणार, माझा स्वतःचा कंदील!',
     attempts: [
-      { text: 'पहिल्या वेळी ओमने इतका डिंक लावला, की सगळी बोटं चिकट चिकट झाली!', sfx: 'GIGGLE' },
+      { text: 'पहिल्या वेळी ओमने इतका डिंक लावला, की सगळी बोटं चिकट चिकट झाली!', sfx: 'LAUGHTER' },
       { text: 'दुसऱ्या वेळी कंदील तयार झाला... पण वाकडा! एका बाजूला झुकलेला.' },
     ],
     twist: 'ताई हसून म्हणाली, "वाकडा असला तरी तो तुझा आहे ओम. चल, आपण दोघं मिळून त्याला रंगीत झालरी लावू."',
@@ -207,9 +216,35 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
       'संध्याकाळी तो रंगीबेरंगी कंदील दारात लावला. आत दिवा लागला, आणि अंगणभर सुंदर प्रकाश पसरला. आजी म्हणाली, "हा तर सगळ्यात सुंदर कंदील!"',
     closing: 'स्वतःच्या हातांनी बनवलेल्या गोष्टीचा आनंद काही वेगळाच असतो.',
     positiveValue: 'स्वतः प्रयत्न करण्याचा आनंद',
-    emotionalArc: ['EXCITED', 'WORRIED', 'WORRIED', 'HAPPY', 'HAPPY'],
-    humourStyle: 'GENTLE',
-    ambience: 'FESTIVAL_CROWD',
-    heroSfx: 'BELL_SMALL',
+    emotionalArc: ['excited', 'worried', 'worried', 'happy', 'happy'],
+    humourStyle: 'gentle',
+    ambience: 'CITY_AMBIENCE',
+    heroSfx: 'BELL',
+  },
+  space: {
+    title: 'चिऊ रॉकेट आणि हरवलेला तारा',
+    summary: 'छोट्या रॉकेटला सापडतो एक रुसलेला तारा.',
+    characters: [
+      { id: 'chiu', name: 'चिऊ', description: 'छोटंसं, उत्साही रॉकेट', role: 'HERO', voiceStyle: 'SMALL_CHILD' },
+      { id: 'tara', name: 'लुकलुक', description: 'रुसलेला छोटा तारा', role: 'FRIEND', voiceStyle: 'SQUEAKY' },
+    ],
+    opening: '"तीन... दोन... एक... झूम!" चिऊ रॉकेट पहिल्यांदाच एकटं आकाशात उडालं होतं.',
+    setting: 'चंद्राच्या पलीकडचं शांत अंतराळ',
+    goal: 'चिऊला चंद्राभोवती एक गोल फेरी मारून परत यायचं होतं.',
+    problem: 'पण वाटेत त्याला एक छोटा तारा दिसला — त्याचा प्रकाश अगदी मंद झाला होता.',
+    heroLine: 'अरे, तू असा अंधारात का बसलायस?',
+    attempts: [
+      { text: 'चिऊने आपले दिवे लुकलुकवले. "बघ, असं चमकायचं!" पण तारा अजूनच रुसला.' },
+      { text: 'मग चिऊने गोल गोल गिरकी घेतली. तारा हसला... पण फक्त थोडासा.', sfx: 'WHOOSH_SOFT' },
+    ],
+    twist: 'तेव्हा ताऱ्याने हळूच सांगितलं, "माझे सगळे मित्र पलीकडे आहेत. मी एकटा मागे राहिलो."',
+    twistSfx: 'MAGIC_SPARKLE',
+    resolution:
+      'चिऊने ताऱ्याला आपल्या टोकावर बसवलं आणि हळूहळू त्याच्या मित्रांपर्यंत नेलं. तिथे पोहोचताच लुकलुक पुन्हा लखलखू लागला.',
+    closing: 'आणि आजही रात्री आकाशात एक तारा जरा जास्तच चमकतो — चिऊला धन्यवाद म्हणायला.',
+    positiveValue: 'दयाळूपणा',
+    emotionalArc: ['excitement', 'curiosity', 'empathy', 'relief', 'warmth'],
+    humourStyle: 'gentle',
+    ambience: 'WIND',
   },
 };

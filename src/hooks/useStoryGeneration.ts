@@ -7,6 +7,8 @@ export type GenerationState =
   | { status: 'working' }
   | { status: 'done'; storyId: string }
   | { status: 'limit' }
+  /** The idea wasn't a story request / wasn't suitable — show Aaji's fixed message. */
+  | { status: 'declined'; message: string }
   | { status: 'error' };
 
 type Input = Pick<StoryRequest, 'category' | 'mode' | 'userIdea'>;
@@ -26,14 +28,17 @@ export function useStoryGeneration(input: Input | null) {
       let state: GenerationState;
       try {
         const profile = await childProfileService.getProfile();
-        const story = await storyService.createStory({
+        const outcome = await storyService.createStory({
           category,
           mode,
           userIdea,
           age: profile?.age ?? 6,
           childName: profile?.name,
         });
-        state = { status: 'done', storyId: story.id };
+        state =
+          outcome.status === 'CREATED'
+            ? { status: 'done', storyId: outcome.story.id }
+            : { status: 'declined', message: outcome.message };
       } catch (e) {
         state = { status: e instanceof StoryLimitReachedError ? 'limit' : 'error' };
       }

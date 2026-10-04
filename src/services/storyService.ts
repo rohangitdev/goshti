@@ -1,17 +1,23 @@
-import { runStoryPipeline, type StoryEngine, type StoryRequest } from '@engine/index';
+import { estimateDurationSeconds, type StoryRequest } from '@engine/index';
 
 import { createId } from '@/utils/id';
 import type { GoshtiStory, StoryRating } from '@/types/models';
 
 import type { StorageService } from './storageService';
+import type { StoryGenerator } from './storyGenerator';
 import type { SubscriptionService } from './subscriptionService';
 import type { TtsService } from './ttsService';
+
+export type CreateStoryOutcome =
+  | { status: 'CREATED'; story: GoshtiStory }
+  /** The child's text wasn't a story idea (or wasn't suitable): show the fixed message. */
+  | { status: 'DECLINED'; message: string };
 
 /**
  * The only way the UI gets stories. Screens never talk to the engine, a model or TTS.
  */
 export interface StoryService {
-  createStory(request: StoryRequest): Promise<GoshtiStory>;
+  createStory(request: Omit<StoryRequest, 'avoidTitles'>): Promise<CreateStoryOutcome>;
   listStories(): Promise<GoshtiStory[]>;
   getStory(id: string): Promise<GoshtiStory | null>;
   rateStory(id: string, rating: StoryRating): Promise<void>;
@@ -26,13 +32,23 @@ export class StoryLimitReachedError extends Error {
   }
 }
 
+/** Generation failed after retries — never shown as a story. */
+export class StoryGenerationError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'StoryGenerationError';
+  }
+}
+
 interface Deps {
-  engine: StoryEngine;
+  generator: StoryGenerator;
+  /** Always offline — seeds must never spend real AI calls. */
+  seedGenerator: StoryGenerator;
   tts: TtsService;
   storage: StorageService;
   subscription: SubscriptionService;
-  /** Artificial delay so the "Aaji is preparing" screen is visible with the mock engine. */
-  simulatedLatencyMs?: number;
+  /** Artificial delay so the "Aaji is preparing" screen is visible with instant mock stories. */
+  minimumLatencyMs?: number;
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,28 +57,38 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const SEED_REQUESTS: { request: StoryRequest; daysAgo: number }[] = [
   { request: { age: 6, category: 'animals', mode: 'RANDOM' }, daysAgo: 3 },
   { request: { age: 6, category: 'bedtime', mode: 'RANDOM' }, daysAgo: 2 },
-  { request: { age: 6, category: 'magic', mode: 'CUSTOM', userIdea: 'एका तांब्यात जादू आहे' }, daysAgo: 1 },
+  { request: { age: 6, category: 'magic', mode: 'RANDOM' }, daysAgo: 1 },
 ];
 
 export class DefaultStoryService implements StoryService {
   constructor(private readonly deps: Deps) {}
 
-  async createStory(request: StoryRequest): Promise<GoshtiStory> {
+  async createStory(input: Omit<StoryRequest, 'avoidTitles'>): Promise<CreateStoryOutcome> {
     if (!(await this.deps.subscription.canGenerateStory())) {
       throw new StoryLimitReachedError();
     }
-    const [story] = await Promise.all([this.build(request, new Date()), wait(this.deps.simulatedLatencyMs ?? 0)]);
-    await this.deps.storage.saveStory(story);
+    const recent = (await this.deps.storage.getStories()).slice(0, 8).map((s) => s.title);
+    const request: StoryRequest = { ...input, avoidTitles: recent };
+
+    const minimum = this.deps.generator.kind === 'mock' ? (this.deps.minimumLatencyMs ?? 0) : 0;
+    const [outcome] = await Promise.all([this.build(this.deps.generator, request, new Date()), wait(minimum)]);
+    if (outcome.status === 'DECLINED') return outcome;
+
+    await this.deps.storage.saveStory(outcome.story);
+    // Only approved, delivered stories count towards the monthly allowance.
     await this.deps.subscription.recordStoryGenerated();
-    return story;
+    return outcome;
   }
 
   async listStories(): Promise<GoshtiStory[]> {
     let stories = await this.deps.storage.getStories();
     if (stories.length === 0) {
-      stories = await Promise.all(
-        SEED_REQUESTS.map(({ request, daysAgo }) => this.build(request, new Date(Date.now() - daysAgo * 86_400_000))),
+      const built = await Promise.all(
+        SEED_REQUESTS.map(({ request, daysAgo }) =>
+          this.build(this.deps.seedGenerator, request, new Date(Date.now() - daysAgo * 86_400_000)),
+        ),
       );
+      stories = built.flatMap((b) => (b.status === 'CREATED' ? [b.story] : []));
       stories.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       await this.deps.storage.saveStories(stories);
     }
@@ -90,23 +116,30 @@ export class DefaultStoryService implements StoryService {
     return !isFav;
   }
 
-  private async build(request: StoryRequest, createdAt: Date): Promise<GoshtiStory> {
-    const { story } = await runStoryPipeline(this.deps.engine, request);
-    const audio = await this.deps.tts.synthesize(story.audioScript);
+  private async build(generator: StoryGenerator, request: StoryRequest, createdAt: Date): Promise<CreateStoryOutcome> {
+    const result = await generator.generate(request);
+    if (result.status === 'FAILED') throw new StoryGenerationError(result.reason);
+    if (result.status !== 'APPROVED') return { status: 'DECLINED', message: result.message };
+
+    const approved = result.story;
+    const audio = await this.deps.tts.synthesize(approved.audioScript);
     return {
-      id: createId(),
-      title: story.title,
-      age: story.plan.request.age,
-      ageBand: story.plan.ageBand,
-      category: story.plan.request.category,
-      userIdea: story.plan.request.userIdea ?? null,
-      value: story.plan.positiveValue,
-      durationSeconds: audio.durationSeconds,
-      storyText: story.storyText,
-      audioScript: story.audioScript,
-      audioUrl: audio.audioUrl,
-      createdAt: createdAt.toISOString(),
-      rating: null,
+      status: 'CREATED',
+      story: {
+        id: createId(),
+        title: approved.title,
+        age: approved.age,
+        ageBand: approved.ageBand,
+        category: approved.category,
+        userIdea: approved.userIdea,
+        value: approved.positiveValue,
+        durationSeconds: audio.durationSeconds || estimateDurationSeconds(approved.audioScript),
+        storyText: approved.storyText,
+        audioScript: approved.audioScript,
+        audioUrl: audio.audioUrl,
+        createdAt: createdAt.toISOString(),
+        rating: null,
+      },
     };
   }
 }

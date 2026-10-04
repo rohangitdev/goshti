@@ -1,54 +1,57 @@
 # गोष्टी — GOSHTI (POC)
 
-Marathi audio stories for children aged 4–9, told by Aaji. **Not a chatbot**: the child's idea is a seed for one story, nothing more.
+Marathi audio stories for children aged 2–9, told by Aaji. **Not a chatbot**: the child's idea is a seed for one story, nothing more.
 
 ## Run
 
 ```bash
 npm install
-npx expo start          # press i / a / w, or scan the QR code with Expo Go
-npm run typecheck       # tsc --noEmit
-npm run lint            # expo lint
+npm run backend           # local story backend + developer tester → http://localhost:8787
+npx expo start            # the app
+npm test                  # unit tests (vitest)
+npm run typecheck         # app + backend
+npm run lint
+npm run deploy:function   # build + deploy the Supabase Edge Function
 ```
 
-## Layout
+## Architecture
 
 ```
-src/app/                 Expo Router screens (UI only)
-  index.tsx              1. Welcome
-  setup.tsx              2. Child setup (also "edit" from Parent mode)
-  home.tsx               3. Home: categories → आजीने निवडावी / माझ्या कल्पनेची
-  idea.tsx               4. Story idea (text + non-functional mic)
-  generating.tsx         5. Generating (+ calm limit/error states, no upsell)
-  story/[id].tsx         6. Player: audio-first, story text not shown
-  stories.tsx            7. My Stories
-  parent.tsx             8. Parent / Upgrade (long-press "पालक" on Home)
-src/components/          Reusable UI (Screen, BigButton, AajiIllustration placeholder, …)
-src/hooks/               Bridge between screens and services
-src/services/            storyService, ttsService, audioService, storageService,
-                         subscriptionService, childProfileService
-  index.ts               Composition root: the ONLY place implementations are chosen
-src/types/models.ts      GoshtiStory, ChildProfile, Subscription
-src/theme/               Colours, spacing, type scale, touch sizes
-story-engine/            Framework-free story pipeline
-  types.ts               StoryRequest, StoryPlan, GeneratedStory, AudioScript, StoryEvaluation
-  sfx.ts                 Predefined SFX + ambience IDs (only these are allowed)
-  engine.ts              StoryEngine interface + runStoryPipeline (plan → write → evaluate, retry)
-  validation.ts          Idea sanitising, audio-script validation, duration estimate
-  mock/                  MockStoryEngine + one hand-written template per category
+SCREEN → hook → StoryService → StoryGenerator ──HTTP──▶ GOSHTI backend ──▶ Story engine ──▶ StoryAIProvider ──▶ Gemini
+                                     │                 (Supabase Edge Function            (Gemini or Mock)
+                                     │                  or local dev server — same code)
+                                     └─ LocalMockGenerator (no backend configured / seed stories)
 ```
 
-## Data flow
+The app never calls Gemini. `GEMINI_API_KEY` exists only in Supabase secrets / the local `.env` read by the backend.
 
-Screen → hook → `storyService` → `story-engine` (plan → write → evaluate) → `ttsService` → `storageService`.
-Screens never import the engine's generation code, a model SDK or TTS.
+### Story engine pipeline (`story-engine/pipeline.ts`)
 
-## Where real integrations plug in (later)
+StoryRequest → IntentClassifier (CUSTOM only) → SafetyGate → DevelopmentProfileResolver → StoryPlanner →
+StoryGenerator → StoryCritic → (TargetedRewrite → Critic, up to 3 versions) → ApprovedStory → AudioScriptGenerator.
+A story that never passes the critic is not returned.
 
-| Concern       | Today                         | Swap in `src/services/index.ts` for            |
-|---------------|-------------------------------|------------------------------------------------|
-| Story writing | `MockStoryEngine`             | Server-side Gemini engine (same interface)     |
-| Voice         | `MockTtsService` (no audio)   | Server-side TTS rendering the AudioScript      |
-| Playback      | `MockAudioService` (timer)    | expo-audio playing `audioUrl`                  |
-| Storage       | `AsyncStorageService`         | Supabase                                       |
-| Plans         | `LocalSubscriptionService`    | RevenueCat (`purchase()` currently throws)     |
+```
+story-engine/
+  prompts/            ← EDIT THESE to tune the Story Bible (one file per AI role)
+  profiles.ts         ← age profiles 2–3 / 4–5 / 6–7 / 8–9 (durations, word budgets, guidance)
+  evaluation.ts       ← critic pass thresholds + local checks
+  variety.ts          ← RANDOM ingredient matrix
+  sfx.ts              ← approved SFX + music moods
+  schemas.ts          ← zod schemas (validation + JSON schema sent to the model)
+  pipeline.ts         ← orchestration, rewrite loop, trace
+  providers/gemini.ts ← Gemini REST provider (backend only)
+  providers/mock.ts   ← offline template provider
+backend/
+  handler.ts          ← shared HTTP handler (Node + Deno)
+  dev-server.ts       ← local backend + tester page
+  tester.html         ← Story Engine developer tester
+supabase/functions/generate-story/  ← Edge Function (imports the esbuild bundle in _bundle/)
+src/                  ← Expo app (screens, hooks, services)
+```
+
+## Configuration
+
+See `.env.example`. Backend: `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-3.8-flash`),
+optional `GEMINI_WRITER_MODEL`, `GEMINI_CRITIC_MODEL`, `STORY_LOG`, `STORY_DEBUG`.
+App (public): `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, optional `EXPO_PUBLIC_STORY_API_URL`.

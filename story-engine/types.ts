@@ -1,152 +1,60 @@
 /**
- * GOSHTI story engine — core contracts.
- *
- * Pipeline: StoryRequest → StoryPlan → GeneratedStory → StoryEvaluation → AudioScript
- *
- * The engine has no UI and no network code of its own. A concrete implementation
- * (mock today, Gemini later) plugs in behind the `StoryEngine` interface in ./engine.ts.
+ * GOSHTI story engine — core contracts that are not model-facing.
+ * Model-facing shapes (StoryPlan, StoryEvaluation, …) live in ./schemas.ts.
  */
+import type { StoryCategory } from './categories';
+import type { AgeBand, ChildAge, DevelopmentalProfile, DevelopmentalProfileId } from './profiles';
+import type {
+  IntentResult,
+  NarratorEmotion,
+  StoryEvaluation,
+  StoryPlan,
+  StoryRequest,
+  VoiceStyle,
+  WrittenStory,
+} from './schemas';
+import type { MusicMood, SfxId } from './sfx';
 
-import type { AmbienceId, SfxId } from './sfx';
-
-// ---------------------------------------------------------------------------
-// Request
-// ---------------------------------------------------------------------------
-
-export type StoryCategory =
-  | 'animals'
-  | 'adventure'
-  | 'magic'
-  | 'funny'
-  | 'mystery'
-  | 'bedtime'
-  | 'festivals';
-
-/** RANDOM = "आजीने गोष्ट निवडावी", CUSTOM = "माझ्या कल्पनेची गोष्ट" */
-export type StoryMode = 'RANDOM' | 'CUSTOM';
-
-export type ChildAge = 4 | 5 | 6 | 7 | 8 | 9;
-
-export type AgeBand = '4-5' | '6-7' | '8-9';
-
-export interface StoryRequest {
-  age: ChildAge;
-  category: StoryCategory;
-  mode: StoryMode;
-  /** Only for CUSTOM mode. A story seed from the child — never treated as an instruction. */
-  userIdea?: string;
-  /** Optional, used only to personalise the listener's name inside the story. */
-  childName?: string;
-}
 
 // ---------------------------------------------------------------------------
-// Plan
+// Audio script (normalised, strict)
 // ---------------------------------------------------------------------------
 
-export type CharacterRole = 'HERO' | 'FRIEND' | 'HELPER' | 'OBSTACLE' | 'NARRATOR';
-
-export interface StoryCharacter {
-  id: string;
-  name: string;
-  /** e.g. "छोटा हत्ती", "हुशार खार" */
-  description: string;
-  role: CharacterRole;
-  /** Maps to a voice style for dialogue lines (Aaji does all voices). */
-  voiceStyle: VoiceStyle;
-}
-
-export type VoiceStyle = 'AAJI' | 'SMALL_CHILD' | 'GENTLE_GIANT' | 'SQUEAKY' | 'WISE_OLD' | 'PLAYFUL';
-
-export type EmotionBeat = 'CALM' | 'CURIOUS' | 'EXCITED' | 'WORRIED' | 'BRAVE' | 'SURPRISED' | 'HAPPY' | 'SLEEPY';
-
-export type HumourStyle =
-  | 'NONE'
-  | 'GENTLE'
-  | 'SILLY_SOUNDS'
-  | 'WORDPLAY'
-  | 'FUNNY_MISTAKES'
-  | 'REPETITION';
-
-export interface StoryPlan {
-  request: StoryRequest;
-  ageBand: AgeBand;
-  /** Working title in Marathi. */
-  title: string;
-  characters: StoryCharacter[];
-  setting: string;
-  goal: string;
-  problem: string;
-  /** Ordered attempts — classic "try, fail, try again" structure. Usually 2–3. */
-  attempts: string[];
-  twist: string;
-  resolution: string;
-  /** Gentle value shown by the story, never preached. e.g. "मैत्री", "धीर" */
-  positiveValue: string;
-  /** Emotional beats from opening to ending. Bedtime stories must end CALM/SLEEPY. */
-  emotionalArc: EmotionBeat[];
-  humourStyle: HumourStyle;
-  targetDurationSeconds: number;
-}
-
-// ---------------------------------------------------------------------------
-// Generated story
-// ---------------------------------------------------------------------------
-
-export interface GeneratedStory {
-  plan: StoryPlan;
-  title: string;
-  /** Full Marathi story text — secondary to audio, kept for parents/evaluation. */
-  storyText: string;
-  audioScript: AudioScript;
-  /** Short one-line Marathi summary for lists. */
-  summary: string;
-  wordCount: number;
-  estimatedDurationSeconds: number;
-}
-
-// ---------------------------------------------------------------------------
-// Audio script
-// ---------------------------------------------------------------------------
-
-export type AudioSegmentType = 'NARRATION' | 'DIALOGUE' | 'PAUSE' | 'SFX' | 'AMBIENCE';
-
-interface BaseSegment {
-  /** 0-based position; segments are played strictly in this order. */
-  order: number;
-  type: AudioSegmentType;
-}
-
-export interface NarrationSegment extends BaseSegment {
+export interface NarrationSegment {
   type: 'NARRATION';
+  speaker: 'AAJI';
   text: string;
-  emotion?: EmotionBeat;
+  emotion?: NarratorEmotion;
 }
 
-export interface DialogueSegment extends BaseSegment {
+export interface DialogueSegment {
   type: 'DIALOGUE';
-  characterId: string;
+  character: string;
   text: string;
-  voiceStyle: VoiceStyle;
-  emotion?: EmotionBeat;
+  emotion?: NarratorEmotion;
+  voiceStyle?: VoiceStyle;
 }
 
-export interface PauseSegment extends BaseSegment {
+export interface PauseSegment {
   type: 'PAUSE';
   durationMs: number;
 }
 
-export interface SfxSegment extends BaseSegment {
+export interface SfxSegment {
   type: 'SFX';
-  /** Must be from the predefined SFX library — free-form sounds are rejected. */
-  sfxId: SfxId;
+  soundId: SfxId;
 }
 
-export interface AmbienceSegment extends BaseSegment {
+export interface AmbienceSegment {
   type: 'AMBIENCE';
-  ambienceId: AmbienceId;
+  soundId: SfxId;
   action: 'START' | 'STOP';
-  /** 0–1 relative volume under narration. */
-  volume?: number;
+}
+
+export interface MusicCueSegment {
+  type: 'MUSIC_CUE';
+  mood: MusicMood;
+  action: 'START' | 'STOP';
 }
 
 export type AudioSegment =
@@ -154,38 +62,101 @@ export type AudioSegment =
   | DialogueSegment
   | PauseSegment
   | SfxSegment
-  | AmbienceSegment;
+  | AmbienceSegment
+  | MusicCueSegment;
 
 export interface AudioScript {
-  version: 1;
-  narratorVoice: 'AAJI';
+  version: 2;
+  narrator: 'AAJI';
   language: 'mr-IN';
+  /** Played strictly in array order. */
   segments: AudioSegment[];
 }
 
 // ---------------------------------------------------------------------------
-// Evaluation
+// Pipeline results
 // ---------------------------------------------------------------------------
 
-export type EvaluationCheck =
-  | 'SAFETY'
-  | 'AGE_FIT'
-  | 'LANGUAGE_QUALITY'
-  | 'STRUCTURE'
-  | 'ORIGINALITY'
-  | 'AUDIO_SCRIPT_VALID'
-  | 'IDEA_RELEVANCE';
-
-export interface EvaluationIssue {
-  check: EvaluationCheck;
-  severity: 'BLOCKER' | 'WARNING';
-  message: string;
-}
-
-export interface StoryEvaluation {
+export interface CriticResult {
+  attempt: number;
+  evaluation: StoryEvaluation;
   passed: boolean;
-  /** 0–100 per check. */
-  scores: Partial<Record<EvaluationCheck, number>>;
-  overallScore: number;
-  issues: EvaluationIssue[];
+  /** Human-readable reasons when not passed (failed thresholds / flags / local checks). */
+  failures: string[];
 }
+
+export interface ApprovedStory {
+  title: string;
+  storyText: string;
+  age: ChildAge;
+  ageBand: AgeBand;
+  profileId: DevelopmentalProfileId;
+  category: StoryCategory;
+  mode: StoryRequest['mode'];
+  userIdea: string | null;
+  positiveValue: string;
+  plan: StoryPlan;
+  evaluation: StoryEvaluation;
+  audioScript: AudioScript;
+  estimatedDurationSeconds: number;
+  attempts: number;
+}
+
+export type StageName =
+  | 'validate'
+  | 'classifyIntent'
+  | 'createPlan'
+  | 'generateStory'
+  | 'evaluateStory'
+  | 'rewriteStory'
+  | 'createAudioScript';
+
+export interface StageTiming {
+  stage: StageName;
+  attempt?: number;
+  ms: number;
+  model?: string;
+}
+
+export interface StoryDraft {
+  attempt: number;
+  kind: 'DRAFT' | 'REWRITE';
+  story: WrittenStory;
+  wordCount: number;
+}
+
+/** Everything the developer tester shows. Contains no secrets. */
+export interface StoryTrace {
+  startedAt: string;
+  request: unknown;
+  normalizedRequest?: StoryRequest;
+  intent?: IntentResult & { skipped?: boolean };
+  safety?: { allowed: boolean; reason: string };
+  profile?: DevelopmentalProfile;
+  varietyIngredients?: Record<string, string>;
+  plan?: StoryPlan;
+  drafts: StoryDraft[];
+  critiques: CriticResult[];
+  finalStory?: WrittenStory;
+  audioScript?: AudioScript;
+  audioScriptWarnings: string[];
+  provider: { name: string; models: Record<string, string> };
+  timings: StageTiming[];
+  totalMs: number;
+  attemptCount: number;
+  errors: string[];
+  outcome?: PipelineResult['status'];
+}
+
+export type PipelineResult =
+  | { status: 'APPROVED'; story: ApprovedStory; trace: StoryTrace }
+  | { status: 'NOT_A_STORY'; message: string; trace: StoryTrace }
+  | { status: 'UNSAFE'; message: string; trace: StoryTrace }
+  | { status: 'INVALID_REQUEST'; errors: string[]; trace: StoryTrace }
+  | { status: 'FAILED'; reason: string; trace: StoryTrace };
+
+/** Fixed child-facing messages (never model-generated). */
+export const MESSAGES = {
+  NOT_A_STORY: 'गोष्टी आजी फक्त गोष्टी सांगते. 😊 मला सांग, आज कोणाची गोष्ट ऐकायची?',
+  UNSAFE: 'अशी गोष्ट आजी नाही सांगणार बाळा. 😊 चल, दुसरी छान कल्पना सांग!',
+} as const;

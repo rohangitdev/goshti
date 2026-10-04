@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { isStoryCategory, type StoryMode } from '@engine/index';
@@ -18,6 +18,13 @@ export default function GeneratingScreen() {
   }, [params.category, params.mode, params.idea]);
 
   const { state, retry } = useStoryGeneration(input);
+  const [slow, setSlow] = useState(false);
+
+  // Real stories are planned, written and reviewed — this can take a minute or two.
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 15_000);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (state.status === 'done') {
@@ -33,6 +40,32 @@ export default function GeneratingScreen() {
           <AajiIllustration size={200} />
           <AppText variant="heading" center>
             या महिन्यातल्या नव्या गोष्टी संपल्या. चल, आवडती जुनी गोष्ट पुन्हा ऐकूया!
+          </AppText>
+        </View>
+      </Screen>
+    );
+  }
+
+  // The child's idea wasn't a story request: a fixed, friendly message — never an AI reply.
+  if (state.status === 'declined') {
+    return (
+      <Screen
+        footer={
+          <>
+            <BigButton
+              label="दुसरी कल्पना सांगा"
+              onPress={() =>
+                router.replace({ pathname: '/idea', params: { category: params.category } })
+              }
+            />
+            <BigButton variant="secondary" label="आजीने गोष्ट निवडावी" onPress={() => router.replace({ pathname: '/generating', params: { category: params.category, mode: 'RANDOM' } })} />
+          </>
+        }
+      >
+        <View style={styles.center}>
+          <AajiIllustration size={200} />
+          <AppText variant="heading" center>
+            {state.message}
           </AppText>
         </View>
       </Screen>
@@ -67,6 +100,11 @@ export default function GeneratingScreen() {
           आजी तुमची गोष्ट तयार करतेय...
         </AppText>
         <ActivityIndicator size="large" color={colors.primary} />
+        {slow ? (
+          <AppText center muted>
+            छान गोष्ट तयार व्हायला थोडा वेळ लागतो...
+          </AppText>
+        ) : null}
       </View>
     </Screen>
   );
