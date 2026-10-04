@@ -12,6 +12,7 @@
 //   GEMINI_THINKING  minimal|low|medium|high|auto for all stages (default: per stage)
 //   STORY_DEBUG=false   stop returning the developer trace
 //   STORY_LOG=off|summary|full
+//   TTS_VOICE        Aaji's voice (default Sulafat); TTS_MODEL (default gemini-3.8-flash-tts)
 //
 // One story = several short requests (each well inside Supabase's 150 s limit):
 // the response is 202 IN_PROGRESS with a `continuation` token until the story is done.
@@ -31,6 +32,10 @@ const ENV_KEYS = [
   'STORY_REQUEST_DEADLINE_MS',
   'STORY_SLICE_MS',
   'STORY_STATE_SECRET',
+  'TTS_MODEL',
+  'TTS_FALLBACK_MODEL',
+  'TTS_VOICE',
+  'TTS_STYLE',
 ];
 
 Deno.serve(async (req: Request) => {

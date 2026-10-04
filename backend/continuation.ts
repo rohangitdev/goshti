@@ -23,8 +23,8 @@ function fromBase64Url(text: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-async function keyFrom(secret: string): Promise<CryptoKey> {
-  const digest = await crypto.subtle.digest('SHA-256', enc.encode(`goshti-continuation:${secret}`));
+async function keyFrom(secret: string, purpose = 'continuation'): Promise<CryptoKey> {
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(`goshti-${purpose}:${secret}`));
   return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
 
@@ -48,6 +48,31 @@ export async function openState(token: unknown, secret: string): Promise<Pipelin
     );
     const state = JSON.parse(dec.decode(plain)) as PipelineState;
     return state && state.v === 1 && state.trace?.normalizedRequest ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Generic sealed token (encrypted + authenticated) for other server-issued data. */
+export async function sealJson(value: unknown, secret: string, purpose: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await keyFrom(secret, purpose), enc.encode(JSON.stringify(value)));
+  const out = new Uint8Array(iv.length + data.byteLength);
+  out.set(iv, 0);
+  out.set(new Uint8Array(data), iv.length);
+  return `v1.${toBase64Url(out)}`;
+}
+
+export async function openJson<T>(token: unknown, secret: string, purpose: string): Promise<T | null> {
+  if (typeof token !== 'string' || !token.startsWith('v1.') || token.length > 2_000_000) return null;
+  try {
+    const bytes = fromBase64Url(token.slice(3));
+    const plain = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: bytes.slice(0, 12) },
+      await keyFrom(secret, purpose),
+      bytes.slice(12),
+    );
+    return JSON.parse(dec.decode(plain)) as T;
   } catch {
     return null;
   }

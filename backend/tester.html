@@ -47,6 +47,8 @@
   .muted { color: var(--muted); }
   .err { color: var(--bad); }
   #empty { color: var(--muted); padding: 40px; text-align: center; }
+  .voiceRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+  .voiceRow audio { height: 32px; max-width: 100%; }
 </style>
 </head>
 <body>
@@ -87,6 +89,11 @@
     <label>Child name (optional) <input id="childName" /></label>
     <button id="go" type="submit">GENERATE STORY</button>
     <div id="status" class="muted"></div>
+    <details>
+      <summary>Aaji voice audition</summary>
+      <p class="muted">Same fixed Marathi paragraph in each voice. Pick one and set TTS_VOICE.</p>
+      <div id="voiceList"></div>
+    </details>
   </form>
 
   <section class="card">
@@ -209,7 +216,7 @@ function render(data, ms) {
 
   const html = [
     data.message ? section('Child-facing message', `<div class="story">${esc(data.message)}</div>`, { open: true }) : '',
-    section('Final approved story', storyHtml(t.finalStory), { open: ok, note: ok ? data.story.positiveValue : 'not approved' }),
+    section('Final approved story', storyHtml(t.finalStory) + (ok && data.audioToken ? `<p><button type="button" class="ghost" id="listen">🔊 Listen in Aaji's voice (${data.audioChunks} parts)</button></p><div id="listenBox"></div>` : ''), { open: ok, note: ok ? data.story.positiveValue : 'not approved' }),
     section('Request', json({ sent: t.request, normalized: t.normalizedRequest })),
     section('Intent classification', json({ intent: t.intent, safety: t.safety }), { note: t.intent?.intent }),
     section('Development profile', json(t.profile), { note: t.profile?.id }),
@@ -224,16 +231,12 @@ function render(data, ms) {
     section('Errors', (t.errors?.length || data.errors?.length || data.reason) ? `<pre class="err">${esc([...new Set([...(t.errors || []), ...(data.errors || []), data.reason].filter(Boolean))].join('\n'))}</pre>` : '<p class="muted">None</p>', { open: !ok && !data.message }),
   ].join('');
   $('sections').innerHTML = html;
+  if ($('listen')) $('listen').onclick = () => { $('listen').disabled = true; listen(data); };
   $('empty').classList.add('hidden');
   $('result').classList.remove('hidden');
 }
 
-$('form').onsubmit = async (e) => {
-  e.preventDefault();
-  const request = { age: Number($('age').value), category: $('category').value, mode: $('mode').value };
-  if (request.mode === 'CUSTOM') request.userIdea = $('idea').value;
-  if ($('childName').value.trim()) request.childName = $('childName').value.trim();
-
+function endpoint() {
   let url = '/generate-story';
   const headers = { 'Content-Type': 'application/json' };
   if ($('target').value === 'supabase') {
@@ -243,6 +246,79 @@ $('form').onsubmit = async (e) => {
     url = `${base}/functions/v1/generate-story`;
     headers.apikey = key; headers.Authorization = `Bearer ${key}`;
   }
+  return { url, headers };
+}
+
+async function post(payload) {
+  const { url, headers } = endpoint();
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { return { status: 'FAILED', reason: `HTTP ${res.status}: ${text.slice(0, 300)}` }; }
+}
+
+function audioUrl(b64, mime) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: mime || 'audio/wav' }));
+}
+
+// ---- Voice audition -------------------------------------------------------
+async function loadVoices() {
+  const r = await post({ action: 'tts-voices' }).catch(() => null);
+  const voices = r?.voices || ['Sulafat', 'Vindemiatrix', 'Gacrux', 'Achernar', 'Aoede'];
+  $('voiceList').innerHTML = voices.map((v) => `
+    <div class="voiceRow"><button type="button" class="ghost" data-voice="${v}">▶ ${v}${v === r?.current ? ' (current)' : ''}</button><span class="muted" id="vs-${v}"></span></div>`).join('');
+  $('voiceList').querySelectorAll('button[data-voice]').forEach((btn) => {
+    btn.onclick = async () => {
+      const v = btn.dataset.voice;
+      $(`vs-${v}`).textContent = 'rendering…';
+      btn.disabled = true;
+      const r = await post({ action: 'tts-audition', voice: v }).catch((e) => ({ reason: String(e) }));
+      btn.disabled = false;
+      if (!r.base64) { $(`vs-${v}`).innerHTML = `<span class="err">${esc(r.reason || 'failed')}</span>`; return; }
+      $(`vs-${v}`).innerHTML = `${(r.ms / 1000).toFixed(1)}s · ${esc(r.model)} <audio controls autoplay src="${audioUrl(r.base64, r.mimeType)}"></audio>`;
+    };
+  });
+}
+$('target').addEventListener('change', loadVoices);
+loadVoices();
+
+// ---- Listen to an approved story (chunk by chunk, playing as they arrive) --
+async function listen(data) {
+  const box = $('listenBox');
+  const n = data.audioChunks || 0;
+  box.innerHTML = `<p class="muted">Rendering ${n} part(s) in Aaji's voice… playback starts with part 1.</p><div id="parts"></div>`;
+  const player = new Audio();
+  const queue = [];
+  let playing = false;
+  const playNext = () => {
+    const next = queue.shift();
+    if (!next) { playing = false; return; }
+    playing = true;
+    player.src = next.url;
+    player.play().catch(() => {});
+    player.onended = () => setTimeout(playNext, next.pauseAfterMs || 0);
+  };
+  const started = Date.now();
+  for (let i = 0; i < n; i++) {
+    const r = await post({ action: 'tts-render', audioToken: data.audioToken, chunk: i });
+    if (!r.base64) { $('parts').insertAdjacentHTML('beforeend', `<p class="err">Part ${i + 1}: ${esc(r.reason || (r.errors || []).join(', '))}</p>`); break; }
+    const url = audioUrl(r.base64, r.mimeType);
+    $('parts').insertAdjacentHTML('beforeend', `<div class="voiceRow">Part ${i + 1}: ${(r.ms / 1000).toFixed(1)}s · ${esc(r.model)} <audio controls src="${url}"></audio></div>`);
+    if (i === 0) box.insertAdjacentHTML('afterbegin', `<p><b>First audio after ${((Date.now() - started) / 1000).toFixed(1)}s</b></p>`);
+    queue.push({ url, pauseAfterMs: r.pauseAfterMs });
+    if (!playing) playNext();
+  }
+}
+
+$('form').onsubmit = async (e) => {
+  e.preventDefault();
+  const request = { age: Number($('age').value), category: $('category').value, mode: $('mode').value };
+  if (request.mode === 'CUSTOM') request.userIdea = $('idea').value;
+  if ($('childName').value.trim()) request.childName = $('childName').value.trim();
+
+  const { url, headers } = endpoint();
 
   $('go').disabled = true;
   const started = Date.now();

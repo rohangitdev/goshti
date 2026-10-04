@@ -14,8 +14,9 @@ import type { StoryAIProvider } from '../story-engine/provider';
 import { GeminiProvider } from '../story-engine/providers/gemini';
 import { MockStoryAIProvider } from '../story-engine/providers/mock';
 import { openState, sealState } from './continuation';
+import { handleTts, isTtsAction, issueAudioToken, type TtsEnv } from './tts';
 
-export interface BackendEnv {
+export interface BackendEnv extends TtsEnv {
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   GEMINI_WRITER_MODEL?: string;
@@ -104,6 +105,8 @@ export async function handleGenerateStory(
   options: { logger?: StoryLogger; now?: () => number } = {},
 ): Promise<HandlerResponse> {
   const now = options.now ?? Date.now;
+  if (isTtsAction(body)) return handleTts(body, env);
+
   const payload = (body && typeof body === 'object' ? body : {}) as {
     request?: unknown;
     continuation?: unknown;
@@ -157,8 +160,10 @@ export async function handleGenerateStory(
   }
 
   const { trace, ...rest } = result;
+  // Approved stories get a sealed token the client can use to request Aaji's voice.
+  const audio = result.status === 'APPROVED' ? await issueAudioToken(result.story.title, result.story.audioScript, env) : {};
   return {
     status: STATUS_CODE[result.status],
-    body: { ...rest, provider: providerInfo, ...(includeTrace && { trace }) },
+    body: { ...rest, ...audio, provider: providerInfo, ...(includeTrace && { trace }) },
   };
 }
