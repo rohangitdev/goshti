@@ -10,6 +10,9 @@
 //   GEMINI_FALLBACK_MODEL   used when the main model is overloaded (default gemini-3.5-flash, "none" = off)
 //   STORY_DEBUG=false   stop returning the developer trace
 //   STORY_LOG=off|summary|full
+//
+// One story = several short requests (each well inside Supabase's 150 s limit):
+// the response is 202 IN_PROGRESS with a `continuation` token until the story is done.
 import { CORS_HEADERS, handleGenerateStory } from './_bundle/handler.mjs';
 
 const ENV_KEYS = [
@@ -21,6 +24,9 @@ const ENV_KEYS = [
   'STORY_DEBUG',
   'STORY_LOG',
   'STORY_TIME_BUDGET_MS',
+  'STORY_REQUEST_DEADLINE_MS',
+  'STORY_SLICE_MS',
+  'STORY_STATE_SECRET',
 ];
 
 Deno.serve(async (req: Request) => {

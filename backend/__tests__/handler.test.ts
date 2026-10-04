@@ -43,4 +43,38 @@ describe('backend handler', () => {
     expect((r.body.provider as { name: string }).name).toBe('gemini');
     expect(JSON.stringify(r.body)).not.toContain('top-secret-key');
   });
+
+  it('splits a real-AI story into short steps and finishes with continuations', async () => {
+    const { samplePlan, storyOfWords, evaluation } = await import('../../story-engine/__tests__/fixtures');
+    const story = storyOfWords(520);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        const system: string = body.systemInstruction.parts[0].text;
+        const reply = system.includes('hidden children') ? samplePlan
+          : system.includes('principal story writer') ? story
+          : system.includes('Story Critic') ? evaluation(9)
+          : system.includes('Audio Story Director') ? { segments: story.storyText.split('\n\n').map((t) => ({ type: 'NARRATION', text: t })) }
+          : { intent: 'STORY_REQUEST', reason: 'idea' };
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(reply) }] }, finishReason: 'STOP' }] }));
+      }),
+    );
+    const env = { GEMINI_API_KEY: 'k', STORY_SLICE_MS: '0' };
+    let r = await handleGenerateStory({ request: { age: 6, category: 'adventure', mode: 'CUSTOM', userIdea: 'एक मांजर क्रिकेट खेळतं' } }, env, quiet);
+    const phases: string[] = [];
+    while (r.status === 202) {
+      phases.push(String(r.body.phase));
+      expect(typeof r.body.progressLabel).toBe('string');
+      r = await handleGenerateStory({ continuation: r.body.continuation }, env, quiet);
+    }
+    expect(phases).toEqual(['PLAN', 'WRITE', 'EVALUATE', 'AUDIO']);
+    expect(r.status).toBe(200);
+    expect(r.body.status).toBe('APPROVED');
+  });
+
+  it('rejects a forged continuation', async () => {
+    const r = await handleGenerateStory({ continuation: 'v1.AAAA' }, { GEMINI_API_KEY: 'k' }, quiet);
+    expect(r.status).toBe(400);
+  });
 });

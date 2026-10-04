@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { CATEGORY_IDS } from '../categories';
-import { generateStory } from '../pipeline';
+import { advancePipeline, generateStory, startPipeline } from '../pipeline';
+import { ProviderError } from '../provider';
 import { MockStoryAIProvider } from '../providers/mock';
 import { MESSAGES } from '../types';
 import { evaluation, fakeProvider, storyOfWords } from './fixtures';
@@ -108,7 +109,7 @@ describe('story pipeline', () => {
   it('stops cleanly when the time budget runs out', async () => {
     let t = 0;
     const { provider } = fakeProvider({ evaluations: [evaluation(5)] });
-    const r = await generateStory(random, provider, { timeBudgetMs: 100, now: () => (t += 30) });
+    const r = await generateStory(random, provider, { totalBudgetMs: 100, now: () => (t += 30) });
     expect(r.status).toBe('FAILED');
     expect(r.trace.errors.join()).toContain('time budget');
   });
@@ -145,5 +146,43 @@ describe('story pipeline', () => {
       { enforceLength: false },
     );
     expect(r.status).toBe('NOT_A_STORY');
+  });
+});
+
+
+describe('resumable pipeline (one phase per request)', () => {
+  it('produces the same approved story step by step', async () => {
+    const { provider } = fakeProvider({ evaluations: [evaluation(6), evaluation(9)] });
+    const started = startPipeline(custom, provider);
+    if (!('state' in started)) throw new Error('expected state');
+    let state = JSON.parse(JSON.stringify(started.state));
+    const phases: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      const r = await advancePipeline(state, provider, { sliceBudgetMs: 0 });
+      if (r.status !== 'IN_PROGRESS') {
+        expect(r.status).toBe('APPROVED');
+        break;
+      }
+      phases.push(r.phase);
+      state = JSON.parse(JSON.stringify(r.state)); // survives serialisation
+    }
+    expect(phases).toEqual(['PLAN', 'WRITE', 'EVALUATE', 'REWRITE', 'EVALUATE', 'AUDIO']);
+  });
+
+  it('hands back a transient overload for retry, then fails after the retry limit', async () => {
+    const { provider } = fakeProvider();
+    provider.generateStory = async () => {
+      throw new ProviderError('OVERLOADED', 'high demand', 'generateStory');
+    };
+    const started = startPipeline(random, provider);
+    if (!('state' in started)) throw new Error('expected state');
+    let r = await advancePipeline(started.state, provider, { sliceBudgetMs: 0 }); // PLAN
+    expect(r.status).toBe('IN_PROGRESS');
+    const seen: string[] = [];
+    for (let i = 0; i < 5 && r.status === 'IN_PROGRESS'; i++) {
+      r = await advancePipeline(r.state, provider, { sliceBudgetMs: 0, maxPhaseRetries: 2 });
+      seen.push(r.status === 'IN_PROGRESS' ? `${r.phase}:${r.state.phaseRetries}` : r.status);
+    }
+    expect(seen).toEqual(['WRITE:1', 'WRITE:2', 'FAILED']);
   });
 });

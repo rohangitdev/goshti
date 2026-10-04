@@ -32,6 +32,6 @@ function resolveStoryBackend(): StoryBackendConfig {
 
 export const config = {
   storyBackend: resolveStoryBackend(),
-  /** Real Gemini stories can take 1–3 minutes. */
-  storyRequestTimeoutMs: 180_000,
+  /** Whole story across all backend steps (real Gemini stories can take a few minutes). */
+  storyRequestTimeoutMs: 400_000,
 };

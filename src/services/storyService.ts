@@ -4,7 +4,7 @@ import { createId } from '@/utils/id';
 import type { GoshtiStory, StoryRating } from '@/types/models';
 
 import type { StorageService } from './storageService';
-import type { StoryGenerator } from './storyGenerator';
+import type { ProgressListener, StoryGenerator } from './storyGenerator';
 import type { SubscriptionService } from './subscriptionService';
 import type { TtsService } from './ttsService';
 
@@ -17,7 +17,7 @@ export type CreateStoryOutcome =
  * The only way the UI gets stories. Screens never talk to the engine, a model or TTS.
  */
 export interface StoryService {
-  createStory(request: Omit<StoryRequest, 'avoidTitles'>): Promise<CreateStoryOutcome>;
+  createStory(request: Omit<StoryRequest, 'avoidTitles'>, onProgress?: ProgressListener): Promise<CreateStoryOutcome>;
   listStories(): Promise<GoshtiStory[]>;
   getStory(id: string): Promise<GoshtiStory | null>;
   rateStory(id: string, rating: StoryRating): Promise<void>;
@@ -63,7 +63,7 @@ const SEED_REQUESTS: { request: StoryRequest; daysAgo: number }[] = [
 export class DefaultStoryService implements StoryService {
   constructor(private readonly deps: Deps) {}
 
-  async createStory(input: Omit<StoryRequest, 'avoidTitles'>): Promise<CreateStoryOutcome> {
+  async createStory(input: Omit<StoryRequest, 'avoidTitles'>, onProgress?: ProgressListener): Promise<CreateStoryOutcome> {
     if (!(await this.deps.subscription.canGenerateStory())) {
       throw new StoryLimitReachedError();
     }
@@ -71,7 +71,7 @@ export class DefaultStoryService implements StoryService {
     const request: StoryRequest = { ...input, avoidTitles: recent };
 
     const minimum = this.deps.generator.kind === 'mock' ? (this.deps.minimumLatencyMs ?? 0) : 0;
-    const [outcome] = await Promise.all([this.build(this.deps.generator, request, new Date()), wait(minimum)]);
+    const [outcome] = await Promise.all([this.build(this.deps.generator, request, new Date(), onProgress), wait(minimum)]);
     if (outcome.status === 'DECLINED') return outcome;
 
     await this.deps.storage.saveStory(outcome.story);
@@ -116,8 +116,13 @@ export class DefaultStoryService implements StoryService {
     return !isFav;
   }
 
-  private async build(generator: StoryGenerator, request: StoryRequest, createdAt: Date): Promise<CreateStoryOutcome> {
-    const result = await generator.generate(request);
+  private async build(
+    generator: StoryGenerator,
+    request: StoryRequest,
+    createdAt: Date,
+    onProgress?: ProgressListener,
+  ): Promise<CreateStoryOutcome> {
+    const result = await generator.generate(request, onProgress);
     if (result.status === 'FAILED') throw new StoryGenerationError(result.reason);
     if (result.status !== 'APPROVED') return { status: 'DECLINED', message: result.message };
 

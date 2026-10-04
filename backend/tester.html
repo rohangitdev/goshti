@@ -192,8 +192,9 @@ function audioHtml(script, warnings) {
 function render(data, ms) {
   const t = data.trace || {};
   const ok = data.status === 'APPROVED';
+  const busy = data.status === 'IN_PROGRESS';
   $('summary').innerHTML = [
-    `<span class="pill ${ok ? 'ok' : 'bad'}">${esc(data.status)}</span>`,
+    `<span class="pill ${ok ? 'ok' : busy ? '' : 'bad'}">${esc(data.status)}${busy ? ` · ${esc(data.phase)}` : ''}</span>`,
     `<span class="pill">provider: ${esc(data.provider?.name)}</span>`,
     `<span class="pill">round trip: ${(ms / 1000).toFixed(1)}s</span>`,
     t.attemptCount != null ? `<span class="pill">attempts: ${t.attemptCount}</span>` : '',
@@ -245,12 +246,20 @@ $('form').onsubmit = async (e) => {
 
   $('go').disabled = true;
   const started = Date.now();
-  const tick = setInterval(() => { $('status').textContent = `Generating… ${Math.round((Date.now() - started) / 1000)}s`; }, 500);
+  let phaseText = '';
+  const tick = setInterval(() => { $('status').textContent = `Generating… ${Math.round((Date.now() - started) / 1000)}s ${phaseText}`; }, 500);
   try {
-    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ request, debug: true }) });
-    const text = await res.text();
+    let payload = { request, debug: true };
     let data;
-    try { data = JSON.parse(text); } catch { data = { status: 'FAILED', reason: `HTTP ${res.status}: ${text.slice(0, 500)}` }; }
+    for (let step = 1; step <= 20; step++) {
+      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+      const text = await res.text();
+      try { data = JSON.parse(text); } catch { data = { status: 'FAILED', reason: `HTTP ${res.status}: ${text.slice(0, 500)}` }; }
+      if (data.status !== 'IN_PROGRESS') break;
+      phaseText = `step ${step}: ${data.phase} — ${data.progressLabel}`;
+      render(data, Date.now() - started);
+      payload = { continuation: data.continuation, debug: true };
+    }
     render(data, Date.now() - started);
     $('status').textContent = `Done in ${((Date.now() - started) / 1000).toFixed(1)}s`;
   } catch (err) {

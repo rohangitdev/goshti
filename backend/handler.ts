@@ -2,13 +2,18 @@
  * Platform-neutral HTTP handler for story generation.
  * Used by BOTH the local dev server (Node) and the Supabase Edge Function (Deno),
  * so they behave identically. GEMINI_API_KEY only ever lives on this side.
+ *
+ * Protocol (one story = a few short requests, each well inside the 150 s limit):
+ *   POST { request, debug? }        → 202 IN_PROGRESS { phase, continuation } | final result
+ *   POST { continuation, debug? }   → 202 IN_PROGRESS … | final result
+ * The client repeats with the returned continuation until the status is not IN_PROGRESS.
  */
 import { createConsoleLogger, type LogLevel, type StoryLogger } from '../story-engine/logging';
-import { generateStory } from '../story-engine/pipeline';
+import { advancePipeline, startPipeline, type PipelinePhase, type StepResult } from '../story-engine/pipeline';
 import type { StoryAIProvider } from '../story-engine/provider';
 import { GeminiProvider } from '../story-engine/providers/gemini';
 import { MockStoryAIProvider } from '../story-engine/providers/mock';
-import type { PipelineResult } from '../story-engine/types';
+import { openState, sealState } from './continuation';
 
 export interface BackendEnv {
   GEMINI_API_KEY?: string;
@@ -21,8 +26,14 @@ export interface BackendEnv {
   STORY_DEBUG?: string;
   /** off | summary | full */
   STORY_LOG?: string;
-  /** Stop starting new AI calls after this long (Edge Functions have a wall-clock limit). */
+  /** Whole-story limit across all requests (default 6 min). */
   STORY_TIME_BUDGET_MS?: string;
+  /** Hard limit for one HTTP request (default 135 s — Supabase kills requests at 150 s). */
+  STORY_REQUEST_DEADLINE_MS?: string;
+  /** Don't start another AI step in the same request after this long (default 20 s). */
+  STORY_SLICE_MS?: string;
+  /** Optional secret for continuation tokens; derived from GEMINI_API_KEY if not set. */
+  STORY_STATE_SECRET?: string;
 }
 
 export interface HandlerResponse {
@@ -36,7 +47,17 @@ export const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-export function createProvider(env: BackendEnv): { provider: StoryAIProvider; note?: string } {
+/** Child-friendly progress labels the app can show (fixed text, never model output). */
+export const PHASE_LABELS: Record<PipelinePhase, string> = {
+  CLASSIFY: 'आजी तुमची कल्पना ऐकतेय...',
+  PLAN: 'आजी गोष्टीचा विचार करतेय...',
+  WRITE: 'आजी गोष्ट लिहितेय...',
+  EVALUATE: 'आजी गोष्ट तपासतेय...',
+  REWRITE: 'आजी गोष्ट अजून छान करतेय...',
+  AUDIO: 'आजी गोष्ट सांगायला तयार होतेय...',
+};
+
+export function createProvider(env: BackendEnv, deadlineAt?: number): { provider: StoryAIProvider; note?: string } {
   if (env.GEMINI_API_KEY) {
     return {
       provider: new GeminiProvider({
@@ -45,6 +66,7 @@ export function createProvider(env: BackendEnv): { provider: StoryAIProvider; no
         writerModel: env.GEMINI_WRITER_MODEL,
         criticModel: env.GEMINI_CRITIC_MODEL,
         fallbackModel: env.GEMINI_FALLBACK_MODEL,
+        deadlineAt,
       }),
     };
   }
@@ -54,7 +76,15 @@ export function createProvider(env: BackendEnv): { provider: StoryAIProvider; no
   };
 }
 
-const STATUS_CODE: Record<PipelineResult['status'], number> = {
+/** Numeric env value; empty/invalid → default (but an explicit "0" is respected). */
+function num(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+const STATUS_CODE: Record<StepResult['status'], number> = {
+  IN_PROGRESS: 202,
   APPROVED: 200,
   NOT_A_STORY: 200,
   UNSAFE: 200,
@@ -65,27 +95,64 @@ const STATUS_CODE: Record<PipelineResult['status'], number> = {
 export async function handleGenerateStory(
   body: unknown,
   env: BackendEnv,
-  options: { logger?: StoryLogger } = {},
+  options: { logger?: StoryLogger; now?: () => number } = {},
 ): Promise<HandlerResponse> {
-  const payload = (body && typeof body === 'object' ? body : {}) as { request?: unknown; debug?: unknown };
-  const { provider, note } = createProvider(env);
+  const now = options.now ?? Date.now;
+  const payload = (body && typeof body === 'object' ? body : {}) as {
+    request?: unknown;
+    continuation?: unknown;
+    debug?: unknown;
+  };
+  const deadlineAt = now() + (num(env.STORY_REQUEST_DEADLINE_MS, 135_000));
+  const { provider, note } = createProvider(env, deadlineAt);
   const logger = options.logger ?? createConsoleLogger((env.STORY_LOG as LogLevel) || 'summary');
+  const secret = env.STORY_STATE_SECRET || env.GEMINI_API_KEY || 'goshti-mock-provider';
+  const isMock = provider.name === 'mock';
 
-  const result = await generateStory(payload.request, provider, {
-    maxAttempts: 3,
-    timeBudgetMs: Number(env.STORY_TIME_BUDGET_MS) || 140_000,
-    enforceLength: provider.name !== 'mock',
-    logger,
-  });
+  let result: StepResult;
+  if (payload.continuation !== undefined) {
+    const state = await openState(payload.continuation, secret);
+    if (!state) {
+      return { status: 400, body: { status: 'INVALID_REQUEST', errors: ['invalid or expired continuation'] } };
+    }
+    result = await advance(state);
+  } else {
+    const started = startPipeline(payload.request, provider, { logger });
+    result = 'result' in started ? started.result : await advance(started.state);
+  }
+
+  async function advance(state: Parameters<typeof advancePipeline>[0]) {
+    return advancePipeline(state, provider, {
+      maxAttempts: 3,
+      totalBudgetMs: num(env.STORY_TIME_BUDGET_MS, 360_000),
+      // The instant mock provider finishes in one request; real AI is sliced.
+      sliceBudgetMs: isMock ? Number.POSITIVE_INFINITY : num(env.STORY_SLICE_MS, 20_000),
+      enforceLength: !isMock,
+      logger,
+      now,
+    });
+  }
 
   const includeTrace = payload.debug === true && env.STORY_DEBUG !== 'false';
+  const providerInfo = { name: provider.name, models: provider.models, ...(note && { note }) };
+
+  if (result.status === 'IN_PROGRESS') {
+    return {
+      status: STATUS_CODE.IN_PROGRESS,
+      body: {
+        status: 'IN_PROGRESS',
+        phase: result.phase,
+        progressLabel: PHASE_LABELS[result.phase],
+        continuation: await sealState(result.state, secret),
+        provider: providerInfo,
+        ...(includeTrace && { trace: result.trace }),
+      },
+    };
+  }
+
   const { trace, ...rest } = result;
   return {
     status: STATUS_CODE[result.status],
-    body: {
-      ...rest,
-      provider: { name: provider.name, models: provider.models, ...(note && { note }) },
-      ...(includeTrace && { trace }),
-    },
+    body: { ...rest, provider: providerInfo, ...(includeTrace && { trace }) },
   };
 }

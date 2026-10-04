@@ -15,9 +15,12 @@ export type GenerationResult =
   | { status: 'NOT_A_STORY' | 'UNSAFE'; message: string }
   | { status: 'FAILED'; reason: string };
 
+/** Fixed child-friendly progress text from the backend (never model output). */
+export type ProgressListener = (label: string) => void;
+
 export interface StoryGenerator {
   readonly kind: 'backend' | 'mock';
-  generate(request: StoryRequest): Promise<GenerationResult>;
+  generate(request: StoryRequest, onProgress?: ProgressListener): Promise<GenerationResult>;
 }
 
 export class LocalMockGenerator implements StoryGenerator {
@@ -49,28 +52,42 @@ export class BackendStoryGenerator implements StoryGenerator {
     private readonly timeoutMs: number,
   ) {}
 
-  async generate(request: StoryRequest): Promise<GenerationResult> {
+  /**
+   * One story = a few short backend requests. The backend answers IN_PROGRESS with a
+   * continuation token until the story is finished (keeps each request under the
+   * Edge Function time limit and lets us show real progress).
+   */
+  async generate(request: StoryRequest, onProgress?: ProgressListener): Promise<GenerationResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let payload: Record<string, unknown> = { request };
     try {
-      const res = await fetch(this.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...this.headers },
-        body: JSON.stringify({ request }),
-        signal: controller.signal,
-      });
-      const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
-      if (!body || typeof body.status !== 'string') {
-        return { status: 'FAILED', reason: `backend returned HTTP ${res.status}` };
+      for (let step = 0; step < 20; step++) {
+        const res = await fetch(this.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...this.headers },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+        if (!body || typeof body.status !== 'string') {
+          return { status: 'FAILED', reason: `backend returned HTTP ${res.status}` };
+        }
+        if (body.status === 'IN_PROGRESS' && typeof body.continuation === 'string') {
+          if (typeof body.progressLabel === 'string') onProgress?.(body.progressLabel);
+          payload = { continuation: body.continuation };
+          continue;
+        }
+        if (body.status === 'APPROVED' && body.story && typeof body.story === 'object') {
+          return { status: 'APPROVED', story: body.story as ApprovedStory };
+        }
+        if ((body.status === 'NOT_A_STORY' || body.status === 'UNSAFE') && typeof body.message === 'string') {
+          return { status: body.status, message: body.message };
+        }
+        const reason = typeof body.reason === 'string' ? body.reason : `backend status ${body.status}`;
+        return { status: 'FAILED', reason };
       }
-      if (body.status === 'APPROVED' && body.story && typeof body.story === 'object') {
-        return { status: 'APPROVED', story: body.story as ApprovedStory };
-      }
-      if ((body.status === 'NOT_A_STORY' || body.status === 'UNSAFE') && typeof body.message === 'string') {
-        return { status: body.status, message: body.message };
-      }
-      const reason = typeof body.reason === 'string' ? body.reason : `backend status ${body.status}`;
-      return { status: 'FAILED', reason };
+      return { status: 'FAILED', reason: 'too many steps' };
     } catch (e) {
       return { status: 'FAILED', reason: (e as Error).name === 'AbortError' ? 'timed out' : (e as Error).message };
     } finally {

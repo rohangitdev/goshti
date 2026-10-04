@@ -59,6 +59,12 @@ export interface GeminiConfig {
   retryDelaysMs?: number[];
   /** Per-call timeout. */
   requestTimeoutMs?: number;
+  /**
+   * Epoch ms by which this provider must have stopped working (the hosting request's limit).
+   * Calls are shortened to fit and retries skipped if they would cross it — the pipeline then
+   * hands back IN_PROGRESS and the next request retries with a fresh limit.
+   */
+  deadlineAt?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -271,8 +277,10 @@ export class GeminiProvider implements StoryAIProvider {
     let switched = false;
 
     for (;;) {
+      const remaining = (this.config.deadlineAt ?? Number.POSITIVE_INFINITY) - Date.now() - 2000;
+      if (remaining < 5000) throw new ProviderError('TIMEOUT', 'not enough time left in this request', spec.stage);
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs ?? 120_000);
+      const timer = setTimeout(() => controller.abort(), Math.min(this.config.requestTimeoutMs ?? 120_000, remaining));
       let res: Response;
       try {
         res = await this.fetchImpl(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
@@ -300,14 +308,15 @@ export class GeminiProvider implements StoryAIProvider {
         }
         const overloaded = res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504;
         if (overloaded) {
-          if (retry < delays.length) {
+          const fitsInRequest = Date.now() + (delays[retry] ?? 0) + 20_000 < (this.config.deadlineAt ?? Number.POSITIVE_INFINITY);
+          if (retry < delays.length && fitsInRequest) {
             await sleep(delays[retry]);
             retry += 1;
             continue;
           }
           // Still busy: try the fallback model once (with a fresh, shorter retry budget).
           const fallback = this.fallbackModel;
-          if (!switched && fallback && fallback !== model) {
+          if (!switched && fallback && fallback !== model && fitsInRequest) {
             model = fallback;
             switched = true;
             retry = Math.max(0, delays.length - 1);

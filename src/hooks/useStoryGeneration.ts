@@ -17,6 +17,7 @@ type Input = Pick<StoryRequest, 'category' | 'mode' | 'userIdea'>;
 export function useStoryGeneration(input: Input | null) {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; state: GenerationState } | null>(null);
+  const [progress, setProgress] = useState<{ key: string; label: string } | null>(null);
   const { category, mode, userIdea } = input ?? {};
   const key = category && mode ? `${category}|${mode}|${userIdea ?? ''}|${attempt}` : null;
 
@@ -34,6 +35,8 @@ export function useStoryGeneration(input: Input | null) {
           userIdea,
           age: profile?.age ?? 6,
           childName: profile?.name,
+        }, (label) => {
+          if (active) setProgress({ key, label });
         });
         state =
           outcome.status === 'CREATED'
@@ -56,5 +59,6 @@ export function useStoryGeneration(input: Input | null) {
       ? result.state
       : { status: 'working' };
 
-  return { state, retry: () => setAttempt((n) => n + 1) };
+  const progressLabel = progress?.key === key ? progress.label : null;
+  return { state, progressLabel, retry: () => setAttempt((n) => n + 1) };
 }

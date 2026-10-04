@@ -17,7 +17,7 @@ export default function GeneratingScreen() {
     return { category: params.category, mode, userIdea: mode === 'CUSTOM' ? params.idea : undefined };
   }, [params.category, params.mode, params.idea]);
 
-  const { state, retry } = useStoryGeneration(input);
+  const { state, progressLabel, retry } = useStoryGeneration(input);
   const [slow, setSlow] = useState(false);
 
   // Real stories are planned, written and reviewed — this can take a minute or two.
@@ -100,8 +100,13 @@ export default function GeneratingScreen() {
           आजी तुमची गोष्ट तयार करतेय...
         </AppText>
         <ActivityIndicator size="large" color={colors.primary} />
-        {slow ? (
+        {progressLabel ? (
           <AppText center muted>
+            {progressLabel}
+          </AppText>
+        ) : null}
+        {slow ? (
+          <AppText center muted variant="caption">
             छान गोष्ट तयार व्हायला थोडा वेळ लागतो...
           </AppText>
         ) : null}
