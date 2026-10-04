@@ -1,4 +1,14 @@
-import { estimateDurationSeconds, type ApprovedStory, type ChildAge, type StoryRequest } from '@engine/index';
+import {
+  estimateDurationSeconds,
+  findLibraryStory,
+  LIBRARY,
+  libraryToApproved,
+  pickLibraryStory,
+  type ApprovedStory,
+  type ChildAge,
+  type StoryCategory,
+  type StoryRequest,
+} from '@engine/index';
 
 import { createId } from '@/utils/id';
 import type { GoshtiStory, StoryRating } from '@/types/models';
@@ -27,7 +37,14 @@ export interface StoryService {
   toggleFavourite(id: string): Promise<boolean>;
   /** Quietly prepare the next random story for the child's most recent category. */
   warmUp(): Promise<void>;
+  /** A hand-written library story (always available, free, offline). */
+  playFromLibrary(input: { age: ChildAge; category?: StoryCategory }): Promise<GoshtiStory>;
+  /** Before playing: make sure Aaji's voice is (being) prepared if it can be. */
+  prepareVoice(story: GoshtiStory): Promise<void>;
 }
+
+/** Library stories use a stable id, so replays reuse the saved voice. */
+export const LIBRARY_ID_PREFIX = 'lib-';
 
 export class StoryLimitReachedError extends Error {
   constructor() {
@@ -51,6 +68,8 @@ interface Deps {
   tts: TtsService;
   storage: StorageService;
   subscription: SubscriptionService;
+  /** Gets a voice ticket for a library story (backend). Optional. */
+  libraryVoiceTicket?: (libraryId: string, age: number) => Promise<VoiceTicket | null>;
   /** Prepares RANDOM stories ahead of time. Optional. */
   prefetcher?: RandomStoryPrefetcher;
   /** Renders Aaji's real voice for approved stories. Optional (absent = phone voice only). */
@@ -61,12 +80,8 @@ interface Deps {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** A few stories so "My Stories" isn't empty on first launch. */
-const SEED_REQUESTS: { request: StoryRequest; daysAgo: number }[] = [
-  { request: { age: 6, category: 'animals', mode: 'RANDOM' }, daysAgo: 3 },
-  { request: { age: 6, category: 'bedtime', mode: 'RANDOM' }, daysAgo: 2 },
-  { request: { age: 6, category: 'magic', mode: 'RANDOM' }, daysAgo: 1 },
-];
+/** First-launch "My Stories": hand-written library stories for the child's age. */
+const SEED_COUNT = 3;
 
 export class DefaultStoryService implements StoryService {
   constructor(private readonly deps: Deps) {}
@@ -84,12 +99,22 @@ export class DefaultStoryService implements StoryService {
 
     const instant = prepared || this.deps.generator.kind === 'mock';
     const minimum = instant ? (this.deps.minimumLatencyMs ?? 0) : 0;
-    const [outcome] = await Promise.all([
-      prepared
-        ? this.fromApproved(prepared.story, new Date(), prepared.id, prepared.voice)
-        : this.build(this.deps.generator, request, new Date(), onProgress),
-      wait(minimum),
-    ]);
+    let outcome: CreateStoryOutcome;
+    try {
+      [outcome] = await Promise.all([
+        prepared
+          ? this.fromApproved(prepared.story, new Date(), prepared.id, prepared.voice)
+          : this.build(this.deps.generator, request, new Date(), onProgress),
+        wait(minimum),
+      ]);
+    } catch (e) {
+      // "Aaji chooses" must never leave a child with nothing: fall back to a library story.
+      if (request.mode === 'RANDOM' && e instanceof StoryGenerationError) {
+        const story = await this.playFromLibrary({ age: request.age as ChildAge, category: request.category });
+        return { status: 'CREATED', story };
+      }
+      throw e;
+    }
     if (outcome.status === 'DECLINED') return outcome;
 
     await this.deps.storage.saveStory(outcome.story);
@@ -105,6 +130,54 @@ export class DefaultStoryService implements StoryService {
       });
     }
     return outcome;
+  }
+
+  async playFromLibrary(input: { age: ChildAge; category?: StoryCategory }): Promise<GoshtiStory> {
+    const stories = await this.deps.storage.getStories();
+    const heard = stories.filter((s) => s.id.startsWith(LIBRARY_ID_PREFIX)).map((s) => s.id.slice(LIBRARY_ID_PREFIX.length));
+    const pick = pickLibraryStory({ age: input.age, category: input.category, avoidIds: heard });
+    const existing = stories.find((s) => s.id === LIBRARY_ID_PREFIX + pick.id);
+    const story = existing ?? this.libraryStory(pick.id, input.age, new Date());
+    if (!existing) await this.deps.storage.saveStory(story);
+    // Library stories are free: they don't count towards the monthly allowance.
+    await this.ensureLibraryVoice(story.id, pick.id, input.age);
+    return story;
+  }
+
+  async prepareVoice(story: GoshtiStory): Promise<void> {
+    if (!story.id.startsWith(LIBRARY_ID_PREFIX)) return;
+    await this.ensureLibraryVoice(story.id, story.id.slice(LIBRARY_ID_PREFIX.length), story.age).catch(() => {});
+  }
+
+  private libraryStory(libraryId: string, age: ChildAge, createdAt: Date): GoshtiStory {
+    const lib = findLibraryStory(libraryId)!;
+    const approved = libraryToApproved(lib, age);
+    return {
+      id: LIBRARY_ID_PREFIX + lib.id,
+      title: approved.title,
+      age,
+      ageBand: approved.ageBand,
+      category: approved.category,
+      userIdea: null,
+      value: approved.positiveValue,
+      durationSeconds: approved.estimatedDurationSeconds,
+      storyText: approved.storyText,
+      audioScript: approved.audioScript,
+      audioUrl: null,
+      createdAt: createdAt.toISOString(),
+      rating: null,
+    };
+  }
+
+  /** Ask the backend for Aaji's voice for a library story (once; saved on the phone after). */
+  private async ensureLibraryVoice(storyId: string, libraryId: string, age: ChildAge) {
+    if (!this.deps.voice || !this.deps.libraryVoiceTicket) return;
+    if (await this.deps.voice.get(storyId)) {
+      void this.deps.voice.render(storyId);
+      return;
+    }
+    const ticket = await this.deps.libraryVoiceTicket(libraryId, age).catch(() => null);
+    if (ticket) await this.deps.voice.start(storyId, ticket);
   }
 
   async warmUp(): Promise<void> {
@@ -124,13 +197,14 @@ export class DefaultStoryService implements StoryService {
   async listStories(): Promise<GoshtiStory[]> {
     let stories = await this.deps.storage.getStories();
     if (stories.length === 0) {
-      const built = await Promise.all(
-        SEED_REQUESTS.map(({ request, daysAgo }) =>
-          this.build(this.deps.seedGenerator, request, new Date(Date.now() - daysAgo * 86_400_000)),
-        ),
+      const age = ((await this.deps.storage.getChildProfile())?.age ?? 4) as ChildAge;
+      const picked: string[] = [];
+      for (let i = 0; i < Math.min(SEED_COUNT, LIBRARY.length); i++) {
+        picked.push(pickLibraryStory({ age, avoidIds: picked }, () => 0).id);
+      }
+      stories = picked.map((id, i) =>
+        this.libraryStory(findLibraryStory(id)!.id, age, new Date(Date.now() - (i + 1) * 86_400_000)),
       );
-      stories = built.flatMap((b) => (b.status === 'CREATED' ? [b.story] : []));
-      stories.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       await this.deps.storage.saveStories(stories);
     }
     return stories;

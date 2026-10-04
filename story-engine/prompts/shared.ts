@@ -14,6 +14,9 @@ export function formatProfile(profile: DevelopmentalProfile): string {
     `Target spoken length: about ${profile.durationMinutes.min}–${profile.durationMinutes.max} minutes ` +
       `(roughly ${profile.targetWords.min}–${profile.targetWords.max} Marathi words).`,
     `Characters: ${profile.mainCharacters}.`,
+    `Vocabulary: ${profile.vocabulary}`,
+    `Character names: ${profile.names}`,
+    `Topics: ${profile.topics}`,
     `Objective: ${profile.objective}`,
     `Characteristics:\n${bullets(profile.characteristics)}`,
     `Useful techniques:\n${bullets(profile.techniques)}`,

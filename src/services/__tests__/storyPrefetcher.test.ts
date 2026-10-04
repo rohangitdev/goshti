@@ -128,3 +128,58 @@ describe('random story prefetching', () => {
     expect(Object.keys(await storage.getPreparedStories())).toEqual(['mystery']);
   });
 });
+
+describe('library fallback', () => {
+  class FailingGenerator implements StoryGenerator {
+    readonly kind = 'backend' as const;
+    async generate(): Promise<GenerationResult> {
+      return { status: 'FAILED', reason: 'QUOTA_EXHAUSTED' };
+    }
+  }
+
+  function failingSetup() {
+    const storage = memoryStorage();
+    const subscription = new LocalSubscriptionService(storage);
+    const service = new DefaultStoryService({
+      generator: new FailingGenerator(),
+      seedGenerator: new FailingGenerator(),
+      tts: new MockTtsService(),
+      storage,
+      subscription,
+      minimumLatencyMs: 0,
+    });
+    return { storage, subscription, service };
+  }
+
+  it('"Aaji chooses" falls back to a library story when AI fails, without using the allowance', async () => {
+    const { service, subscription } = failingSetup();
+    const r = await service.createStory({ age: 2, category: 'bedtime', mode: 'RANDOM' });
+    expect(r.status).toBe('CREATED');
+    if (r.status === 'CREATED') expect(r.story.id).toBe('lib-chiu-good-night');
+    expect((await subscription.getSubscription()).storiesGeneratedThisMonth).toBe(0);
+  });
+
+  it('a child’s own idea still reports the failure (the screen offers a library story)', async () => {
+    const { service } = failingSetup();
+    await expect(
+      service.createStory({ age: 6, category: 'space', mode: 'CUSTOM', userIdea: 'हत्ती चंद्रावर गेला' }),
+    ).rejects.toThrow('QUOTA_EXHAUSTED');
+    const lib = await service.playFromLibrary({ age: 6, category: 'space' });
+    expect(lib.id).toBe('lib-chanda-broken-moon');
+  });
+
+  it('does not repeat library stories while others are available', async () => {
+    const { service } = failingSetup();
+    const a = await service.playFromLibrary({ age: 3 });
+    const b = await service.playFromLibrary({ age: 3 });
+    const c = await service.playFromLibrary({ age: 3 });
+    expect(new Set([a.id, b.id, c.id]).size).toBe(3);
+  });
+
+  it('first-launch My Stories are library stories for the child’s age', async () => {
+    const { service } = failingSetup();
+    const stories = await service.listStories();
+    expect(stories.length).toBe(3);
+    expect(stories.every((s) => s.id.startsWith('lib-'))).toBe(true);
+  });
+});

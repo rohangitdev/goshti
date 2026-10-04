@@ -201,6 +201,8 @@ export async function advancePipeline(
           const local = localStoryChecks(story, profile, {
             enforceLength: options.enforceLength ?? true,
             ignoreWords: request.childName ? [request.childName] : [],
+            age: request.age,
+            characterNames: [plan.mainCharacter.name, ...plan.supportingCharacters.map((c) => c.name)],
           });
           const verdict = judgeEvaluation(evaluation, local);
           trace.critiques.push({ attempt: trace.attemptCount, evaluation, passed: verdict.passed, failures: verdict.failures });

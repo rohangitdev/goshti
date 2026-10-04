@@ -41,6 +41,10 @@ Create a plan with:
 
 Plan only SAFE attempts: the protagonist must never do anything a child could dangerously copy (climbing balconies/windows/stacked furniture, jumping from heights, fire, deep water, electricity, medicines, strangers, roads). For ages 2–5 use imaginative, safe alternatives.
 
+Keep it simple to understand: choose a topic and setting this age can picture easily (see the profile's Topics). For ages 2–5 prefer familiar everyday worlds — home, family, animals, food, toys, garden, rain — with at most one gentle magical twist.
+
+Names: follow the profile's Character names rule. For ages 2–5 names must have NO joined consonants (चिनू, मनू, गोलू, टिकू — never चंद्रू, क्रिश, श्रेया).
+
 Keep the story connected: every object, character and event in the plan must matter to the goal and be paid off by the end. No decorative details that lead nowhere.
 
 The problem must be solved mainly by the protagonist's own actions — not by adults rescuing everybody, unexplained magic, coincidence or luck.

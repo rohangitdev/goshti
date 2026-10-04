@@ -151,6 +151,17 @@ const EARLY_PROTAGONISTS = [
   'a vehicle with a personality (bus, train, rickshaw, boat)',
 ] as const;
 
+/** Ages 2–3: only familiar, concrete places. */
+const EARLY_SETTINGS = ['home', 'garden', 'farm', 'village', 'rainy day', 'beach', 'market', 'park', 'grandparents’ house'] as const;
+const EARLY_SETTINGS_BY_CATEGORY: Partial<Record<StoryCategory, readonly string[]>> = {
+  space: ['home at night, looking at the moon and stars', 'garden at night', 'terrace with grown-ups at night'],
+  bedtime: ['home', 'garden at dusk', 'grandparents’ house'],
+  festivals: ['home', 'village', 'grandparents’ house', 'market'],
+};
+const EARLY_PLOTS = ['search and find', 'help someone with their problem', 'a plan that keeps going wrong in funny ways', 'learning a new skill', 'an unexpected visitor'] as const;
+/** Ages 4–5: drop settings that need background knowledge. */
+const NOT_FOR_YOUNG = new Set(['science fair', 'museum']);
+
 export interface VarietyIngredients {
   protagonist: string;
   setting: string;
@@ -167,10 +178,14 @@ export function pickIngredients(
   rng: Rng = Math.random,
 ): VarietyIngredients {
   const early = profile.id === 'EARLY_LISTENER';
+  const young = early || profile.id === 'IMAGINATIVE_LISTENER';
+  const settings = early
+    ? (EARLY_SETTINGS_BY_CATEGORY[request.category] ?? EARLY_SETTINGS)
+    : (CATEGORY_SETTINGS[request.category] ?? SETTINGS).filter((x) => !young || !NOT_FOR_YOUNG.has(x));
   return {
     protagonist: pick(early ? EARLY_PROTAGONISTS : PROTAGONISTS, rng),
-    setting: pick(CATEGORY_SETTINGS[request.category] ?? SETTINGS, rng),
-    plotPattern: pick(CATEGORY_PLOTS[request.category] ?? PLOT_PATTERNS, rng),
+    setting: pick(settings, rng),
+    plotPattern: pick(early ? EARLY_PLOTS : (CATEGORY_PLOTS[request.category] ?? PLOT_PATTERNS), rng),
     relationship: pick(RELATIONSHIPS, rng),
     objectOrDiscovery: pick(OBJECTS_AND_DISCOVERIES, rng),
     humourStyle: pick(HUMOUR_BY_PROFILE[profile.id], rng),

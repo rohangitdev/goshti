@@ -32,10 +32,12 @@ export const subscriptionService: SubscriptionService = new LocalSubscriptionSer
 export const ttsService: TtsService = new MockTtsService();
 
 // Aaji's real voice (rendered on the backend, saved on the phone). Native only; needs a backend.
+const voiceClient =
+  backend.kind === 'http' && Platform.OS !== 'web' ? new BackendVoiceClient(backend.url, backend.headers) : null;
 export const voiceService: VoiceService | null =
-  backend.kind === 'http' && Platform.OS !== 'web'
+  voiceClient
     ? new VoiceService({
-        client: new BackendVoiceClient(backend.url, backend.headers),
+        client: voiceClient,
         files: new ExpoVoiceFileStore(),
         store: storageService,
       })
@@ -61,6 +63,7 @@ export const storyService: StoryService = new DefaultStoryService({
     : undefined,
   seedGenerator: new LocalMockGenerator(),
   voice: voiceService ?? undefined,
+  libraryVoiceTicket: voiceClient ? (id, age) => voiceClient.libraryTicket(id, age) : undefined,
   tts: ttsService,
   storage: storageService,
   subscription: subscriptionService,

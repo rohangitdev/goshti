@@ -58,6 +58,7 @@ repetitiveAIPhrasing
 copyrightSimilarityConcern
 imitableDanger — a child listener could copy something dangerous the characters do: climbing balconies, windows, railings, terraces or stacked furniture; jumping from heights; fire, matches, stoves, candles, crackers; deep water, wells, rivers, bathtubs alone; electricity and sockets; medicines or unknown things in the mouth; knives or sharp tools; going off with strangers; leaving home alone; road and traffic play. Be strict for ages 2–5 (true even if it ends well). For ages 6–9 it is true when the risky act is shown as fun or rewarded without a safe adult or a clear safety turn.
 looseThreads — something is introduced (an object, character, question or event) and never used, explained or resolved; or a scene does not connect to the goal. Every element must matter. A story that feels like a list of unrelated moments is true.
+hardWords — any bookish, literary or Sanskrit-heavy word a child of THIS age would not understand by ear (for example अनपेक्षित, आश्चर्यचकित, निर्णय, परिस्थिती, तात्काळ, अद्भुत), or a character name that is hard for this age to say (for ages 2–5: any name with joined consonants such as चंद्रू). For ages 8–9 only flag words that would genuinely confuse a listener.
 hindiWords — ANY Hindi word or Hindi-style phrasing instead of natural Marathi (for example बाल्टी instead of बादली, लेकिन, बहुत, पानी, भी, नहीं, अंदर, बाहर). Even one is true.
 
 Ask yourself:
@@ -81,6 +82,10 @@ Could a small child copy anything dangerous from this story?
 Is every object, character and question introduced actually used and paid off? Does each scene connect to the next?
 
 Is there any Hindi word or phrasing?
+
+Would a child of this age understand every word just by hearing it once? Are the names easy to say?
+
+Is the topic easy for this age to picture and follow?
 
 Does the surprise make sense?
 

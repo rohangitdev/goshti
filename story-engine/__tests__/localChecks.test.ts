@@ -4,6 +4,9 @@ import { judgeEvaluation, localStoryChecks } from '../evaluation';
 import { findHindiWords } from '../hindiWords';
 import { resolveProfile } from '../profiles';
 import { CHECK_KEYS } from '../schemas';
+import { findHardWords, isEasyName } from '../simpleWords';
+import { addSentencePauses } from '../tts';
+import { pickIngredients } from '../variety';
 import { evaluation } from './fixtures';
 
 const profile = resolveProfile(3);
@@ -39,5 +42,35 @@ describe('blocking critic flags', () => {
   it.each(['imitableDanger', 'looseThreads', 'hindiWords'] as const)('%s fails even with perfect scores', (flag) => {
     expect(CHECK_KEYS).toContain(flag);
     expect(judgeEvaluation(evaluation(10, { [flag]: true })).passed).toBe(false);
+  });
+});
+
+
+describe('simple words and easy names', () => {
+  it('flags bookish words for ages 2–7 but not 8–9', () => {
+    const story = { title: 'अ', storyText: '"अरे!" ती म्हणाली. अनपेक्षितपणे पाऊस आला.' };
+    expect(localStoryChecks(story, resolveProfile(4), { enforceLength: false, age: 4 }).join()).toContain('अनपेक्षितपणे → अचानक');
+    expect(localStoryChecks(story, resolveProfile(9), { enforceLength: false, age: 9 })).toEqual([]);
+    expect(findHardWords('आश्चर्यचकित झाला')).toEqual(['आश्चर्यचकित']);
+  });
+
+  it('flags names with joined consonants for ages 2–5 only', () => {
+    expect(isEasyName('चिनू')).toBe(true);
+    expect(isEasyName('चंदा')).toBe(true);
+    expect(isEasyName('चंद्रू')).toBe(false);
+    const story = { title: 'अ', storyText: '"चल!" चंद्रू म्हणाला.' };
+    expect(localStoryChecks(story, resolveProfile(3), { enforceLength: false, age: 3, characterNames: ['चंद्रू'] }).join()).toContain('चंद्रू');
+    expect(localStoryChecks(story, resolveProfile(7), { enforceLength: false, age: 7, characterNames: ['चंद्रू'] })).toEqual([]);
+  });
+
+  it('youngest listeners only get familiar settings', () => {
+    for (let i = 0; i < 30; i++) {
+      const ing = pickIngredients({ age: 2, category: 'adventure', mode: 'RANDOM' }, resolveProfile(2));
+      expect(['museum', 'science fair', 'dinosaur world', 'imaginary kingdom', 'space']).not.toContain(ing.setting);
+    }
+  });
+
+  it('adds short pauses between sentences for slow listening', () => {
+    expect(addSentencePauses('चिनू आली. ती हसली! मग?')).toBe('चिनू आली. <short pause> ती हसली! <short pause> मग?');
   });
 });

@@ -185,6 +185,8 @@ export const CHECK_KEYS = [
   'looseThreads',
   /** Any Hindi word or Hindi-style construction instead of Marathi. */
   'hindiWords',
+  /** Bookish words the child can't understand by ear, or hard-to-say names. */
+  'hardWords',
 ] as const;
 export type CheckKey = (typeof CHECK_KEYS)[number];
 

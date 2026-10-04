@@ -29,6 +29,12 @@ export interface DevelopmentalProfile {
   durationMinutes: { min: number; max: number };
   targetWords: { min: number; max: number };
   mainCharacters: string;
+  /** Words: what a child of this age understands by ear. */
+  vocabulary: string;
+  /** Character names: how easy they must be to say. */
+  names: string;
+  /** Topics and settings that suit this age. */
+  topics: string;
   objective: string;
   characteristics: string[];
   techniques: string[];
@@ -55,6 +61,12 @@ export const PROFILES: Record<DevelopmentalProfileId, DevelopmentalProfile> = {
     durationMinutes: { min: 2, max: 4 },
     targetWords: words(2, 4),
     mainCharacters: '1–2 main characters',
+    vocabulary:
+      'Only everyday words a 2–3-year-old hears at home (आई, बाबा, आजी, खाऊ, दूध, चेंडू, मांजर, पाऊस…). No bookish or Sanskrit words. Very short sentences.',
+    names:
+      'Very short, sweet, easy names of 2 syllables with NO joined consonants (चिनू, मनू, गोलू, पिकू, सोनू, मोती). Never names like चंद्रू, ब्रिजू, क्रिश.',
+    topics:
+      'Only familiar, concrete, everyday things: home, family, pets and farm animals, food, toys, garden, rain, bath, bedtime, a simple outing. No abstract ideas, science, kingdoms or faraway worlds.',
     objective: 'The child should easily understand and enjoy the whole story purely by listening.',
     characteristics: [
       'one simple central idea',
@@ -98,6 +110,12 @@ export const PROFILES: Record<DevelopmentalProfileId, DevelopmentalProfile> = {
     durationMinutes: { min: 4, max: 6 },
     targetWords: words(4, 6),
     mainCharacters: 'usually 2–3 important characters',
+    vocabulary:
+      'Simple everyday spoken Marathi a 4–5-year-old uses. No bookish or Sanskrit words (say अचानक, not अनपेक्षितपणे; थक्क झाला, not आश्चर्यचकित झाला).',
+    names:
+      'Short, easy names with NO joined consonants (चिनू, टिकू, राणी, बबलू, चंदा). Never names like चंद्रू, क्रिश, श्रेया.',
+    topics:
+      'Mostly familiar worlds (home, school, garden, animals, festivals, rain, the moon and stars) with one simple magical or adventurous twist. Keep ideas concrete.',
     objective: 'A simple genuine adventure the child can follow and feel part of.',
     characteristics: [
       'clear protagonist goal and clear cause and effect',
@@ -129,6 +147,10 @@ export const PROFILES: Record<DevelopmentalProfileId, DevelopmentalProfile> = {
     durationMinutes: { min: 5, max: 7 },
     targetWords: words(5, 7),
     mainCharacters: 'a protagonist plus 1–3 distinctive supporting characters',
+    vocabulary:
+      'Everyday spoken Marathi. A new word is fine only if the story makes its meaning obvious. No bookish or Sanskrit-heavy words.',
+    names: 'Easy names, ideally without joined consonants; avoid tongue-twisters.',
+    topics: 'Familiar and imaginative worlds; ideas a 6–7-year-old can picture easily. Avoid complicated science or abstract themes.',
     objective: 'A real story with a stronger arc that does NOT feel babyish.',
     characteristics: [
       'stronger narrative arc with distinctive characters and clear motivations',
@@ -157,6 +179,9 @@ export const PROFILES: Record<DevelopmentalProfileId, DevelopmentalProfile> = {
     durationMinutes: { min: 6, max: 9 },
     targetWords: words(6, 9),
     mainCharacters: 'a protagonist with strong agency plus a small, distinctive supporting cast',
+    vocabulary: 'Rich but natural spoken Marathi; avoid textbook or Sanskrit-heavy words that sound bookish when heard.',
+    names: 'Easy, natural names that are pleasant to hear and say.',
+    topics: 'Any world, as long as the listener can easily picture it and follow the idea by ear.',
     objective: 'A rich, clever story that respects the listener’s intelligence.',
     characteristics: [
       'richer plot with stronger motivations and genuine obstacles',

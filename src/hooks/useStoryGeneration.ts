@@ -61,5 +61,12 @@ export function useStoryGeneration(input: Input | null) {
       : { status: 'working' };
 
   const progressLabel = progress?.key === key ? progress.label : null;
-  return { state, progressLabel, retry: () => setAttempt((n) => n + 1) };
+  /** Always-available fallback: one of Aaji's hand-written library stories. */
+  const playLibrary = async (): Promise<string> => {
+    const profile = await childProfileService.getProfile();
+    const story = await storyService.playFromLibrary({ age: profile?.age ?? 4, category });
+    return story.id;
+  };
+
+  return { state, progressLabel, retry: () => setAttempt((n) => n + 1), playLibrary };
 }

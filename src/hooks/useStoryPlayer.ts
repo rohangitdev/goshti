@@ -18,6 +18,7 @@ export function useStoryPlayer(storyId: string | undefined) {
       if (!active) return;
       if (found) {
         setIsFavourite(await storyService.isFavourite(found.id));
+        await storyService.prepareVoice(found);
         await audioService.load(found);
       }
       if (active) setLoaded({ id: storyId, story: found });

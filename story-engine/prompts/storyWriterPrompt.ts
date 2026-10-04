@@ -59,6 +59,14 @@ The narration should feel warm, playful, curious and reassuring, like a caring f
 
 Do not make Aaji overly sentimental. Not every sentence needs to be sweet.
 
+SIMPLE WORDS — EASY TO UNDERSTAND BY EAR:
+
+Children hear the story once; they cannot re-read a hard word. Use the everyday words Marathi families use at home with a child of this age. Never use bookish or Sanskrit-heavy words such as अनपेक्षित, आश्चर्यचकित, निर्णय, समस्या, परिस्थिती, तात्काळ, अद्भुत, प्रचंड. Say it simply: अचानक, थक्क झाला, ठरवलं, अडचण, लगेच, भारी, खूप मोठा. Simple words — engaging story.
+
+EASY NAMES:
+
+Character names must be easy for a small child to say and remember. For ages 2–5 use short names with NO joined consonants (चिनू, मनू, गोलू, टिकू, सोनू, चंदा) — never names like चंद्रू, क्रिश, श्रेया. Use the names from the plan unless they break this rule.
+
 SAFETY — NOTHING A CHILD COULD COPY DANGEROUSLY:
 
 Children copy what heroes do. Characters must never model dangerous actions a child could imitate: climbing balconies, windows, railings, terraces or stacked furniture; jumping from heights; fire, matches, stoves, candles, crackers; deep water, wells, rivers or bathtubs alone; electricity and sockets; putting medicines or unknown things in the mouth; knives or sharp tools; going off with strangers; leaving home alone; playing on roads.

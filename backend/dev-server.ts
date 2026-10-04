@@ -16,6 +16,7 @@ import { anonymiseTrace, createConsoleLogger, type LogLevel } from '../story-eng
 import type { StoryTrace } from '../story-engine/types';
 import { CORS_HEADERS, handleGenerateStory, type BackendEnv } from './handler';
 import { PRESETS } from './presets';
+import { addToLibrary } from './libraryWriter';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -76,6 +77,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/health') {
       return send(res, 200, JSON.stringify({ ok: true, gemini: !!env.GEMINI_API_KEY, model: env.GEMINI_MODEL ?? null }));
+    }
+    if (req.method === 'POST' && url.pathname === '/library/add') {
+      const result = addToLibrary(await readBody(req), join(root, 'story-engine', 'library', 'added.ts'));
+      return send(res, result.ok ? 200 : 400, JSON.stringify(result));
     }
     if (req.method === 'POST' && url.pathname === '/generate-story') {
       const result = await handleGenerateStory(await readBody(req), env, { logger });

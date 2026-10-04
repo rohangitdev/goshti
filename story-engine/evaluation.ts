@@ -1,4 +1,5 @@
 import { findHindiWords, HINDI_WORDS } from './hindiWords';
+import { findHardWords, HARD_WORDS, isEasyName } from './simpleWords';
 import type { DevelopmentalProfile } from './profiles';
 import { CHECK_KEYS, type CheckKey, type ScoreKey, type StoryEvaluation, type WrittenStory } from './schemas';
 
@@ -39,7 +40,7 @@ export const LOCAL_LIMITS = {
 export function localStoryChecks(
   story: WrittenStory,
   profile: DevelopmentalProfile,
-  options: { enforceLength?: boolean; ignoreWords?: string[] } = {},
+  options: { enforceLength?: boolean; ignoreWords?: string[]; age?: number; characterNames?: string[] } = {},
 ): string[] {
   const failures: string[] = [];
   const words = countWords(story.storyText);
@@ -63,6 +64,16 @@ export function localStoryChecks(
   const hindi = findHindiWords(story.title + ' ' + story.storyText);
   if (hindi.length) {
     failures.push(`Hindi words — replace with Marathi: ${hindi.map((w) => `${w} → ${HINDI_WORDS[w]}`).join(', ')}`);
+  }
+  // Simple words and easy names for younger listeners.
+  const age = options.age ?? 9;
+  if (age <= 7) {
+    const hard = findHardWords(story.title + ' ' + story.storyText);
+    if (hard.length) failures.push(`hard words for age ${age} — use simple words: ${hard.map((w) => `${w} → ${HARD_WORDS[w]}`).join(', ')}`);
+  }
+  if (age <= 5) {
+    const hardNames = (options.characterNames ?? []).filter((n) => n && !isEasyName(n) && story.storyText.includes(n));
+    if (hardNames.length) failures.push(`hard-to-say names for age ${age} (no joined consonants): ${hardNames.join(', ')}`);
   }
   // Spoken lines must be quoted so the narrator can switch voices.
   const hasQuotes = /["“”]/.test(story.storyText);

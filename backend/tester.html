@@ -216,7 +216,7 @@ function render(data, ms) {
 
   const html = [
     data.message ? section('Child-facing message', `<div class="story">${esc(data.message)}</div>`, { open: true }) : '',
-    section('Final approved story', storyHtml(t.finalStory) + (ok && data.audioToken ? `<p><button type="button" class="ghost" id="listen">🔊 Listen in Aaji's voice (${data.audioChunks} parts)</button></p><div id="listenBox"></div>` : ''), { open: ok, note: ok ? data.story.positiveValue : 'not approved' }),
+    section('Final approved story', storyHtml(t.finalStory) + (ok && data.audioToken ? `<p><button type="button" class="ghost" id="listen">🔊 Listen in Aaji's voice (${data.audioChunks} parts)</button> <button type="button" class="ghost" id="addLib">📚 Add to library</button> <span id="addLibStatus" class="muted"></span></p><div id="listenBox"></div>` : ''), { open: ok, note: ok ? data.story.positiveValue : 'not approved' }),
     section('Request', json({ sent: t.request, normalized: t.normalizedRequest })),
     section('Intent classification', json({ intent: t.intent, safety: t.safety }), { note: t.intent?.intent }),
     section('Development profile', json(t.profile), { note: t.profile?.id }),
@@ -232,6 +232,13 @@ function render(data, ms) {
   ].join('');
   $('sections').innerHTML = html;
   if ($('listen')) $('listen').onclick = () => { $('listen').disabled = true; listen(data); };
+  if ($('addLib')) $('addLib').onclick = async () => {
+    $('addLib').disabled = true;
+    // Always saved by the LOCAL dev server (it writes story-engine/library/added.ts).
+    const res = await fetch('/library/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ story: data.story }) });
+    const r = await res.json().catch(() => ({ ok: false, error: 'local dev server not reachable' }));
+    $('addLibStatus').textContent = r.ok ? `Saved as ${r.id} — redeploy + reload the app to include it` : `Not saved: ${r.error}`;
+  };
   $('empty').classList.add('hidden');
   $('result').classList.remove('hidden');
 }

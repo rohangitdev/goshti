@@ -4,6 +4,7 @@
  *   { action: "tts-voices" }                       → audition voices
  *   { action: "tts-audition", voice }              → fixed sample paragraph in that voice
  *   { action: "tts-render", audioToken, chunk }    → one chunk of an APPROVED story
+ *   { action: "library-voice", id, age }           → audio token for a built-in library story
  *
  * tts-render only accepts an audioToken that this backend issued when it approved a story,
  * so Aaji can never be made to say arbitrary text.
@@ -11,6 +12,7 @@
 import { ProviderError } from '../story-engine/provider';
 import { DEFAULT_TTS_VOICE, GeminiSpeechSynthesizer } from '../story-engine/providers/geminiTts';
 import { AUDITION_CHUNK, AUDITION_VOICES, buildTtsChunks, DEFAULT_AAJI_STYLE } from '../story-engine/tts';
+import { findLibraryStory, libraryAudioScript } from '../story-engine/library';
 import type { AudioScript } from '../story-engine/types';
 import { openJson, sealJson } from './continuation';
 
@@ -29,33 +31,46 @@ interface AudioTokenPayload {
   v: 1;
   title: string;
   script: AudioScript;
+  /** Child's age — younger listeners get extra pauses between sentences. */
+  age?: number;
 }
 
 const PURPOSE = 'audio';
 const secretOf = (env: TtsEnv) => env.STORY_STATE_SECRET || env.GEMINI_API_KEY || 'goshti-mock-provider';
 const VOICE_RE = /^[A-Za-z]{2,24}$/;
 
-export function chunksFor(script: AudioScript, env: TtsEnv) {
-  return buildTtsChunks(script, { baseStyle: env.TTS_STYLE || DEFAULT_AAJI_STYLE });
+export function chunksFor(script: AudioScript, env: TtsEnv, age?: number) {
+  return buildTtsChunks(script, {
+    baseStyle: env.TTS_STYLE || DEFAULT_AAJI_STYLE,
+    sentencePauses: age !== undefined && age <= 5,
+  });
 }
 
 /** Issued with every APPROVED story. */
-export async function issueAudioToken(title: string, script: AudioScript, env: TtsEnv) {
-  const token = await sealJson({ v: 1, title, script } satisfies AudioTokenPayload, secretOf(env), PURPOSE);
-  return { audioToken: token, audioChunks: chunksFor(script, env).length, ttsAvailable: !!env.GEMINI_API_KEY };
+export async function issueAudioToken(title: string, script: AudioScript, env: TtsEnv, age?: number) {
+  const token = await sealJson({ v: 1, title, script, age } satisfies AudioTokenPayload, secretOf(env), PURPOSE);
+  return { audioToken: token, audioChunks: chunksFor(script, env, age).length, ttsAvailable: !!env.GEMINI_API_KEY };
 }
 
 export function isTtsAction(body: unknown): boolean {
   const a = (body as { action?: unknown } | null)?.action;
-  return a === 'tts-voices' || a === 'tts-audition' || a === 'tts-render';
+  return a === 'tts-voices' || a === 'tts-audition' || a === 'tts-render' || a === 'library-voice';
 }
 
 export async function handleTts(
   body: unknown,
   env: TtsEnv,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const b = (body ?? {}) as { action?: string; voice?: unknown; audioToken?: unknown; chunk?: unknown };
+  const b = (body ?? {}) as { action?: string; voice?: unknown; audioToken?: unknown; chunk?: unknown; id?: unknown; age?: unknown };
   const voice = typeof b.voice === 'string' && VOICE_RE.test(b.voice) ? b.voice : env.TTS_VOICE || DEFAULT_TTS_VOICE;
+
+  if (b.action === 'library-voice') {
+    // Library stories are known to the server, so only an id is accepted — never text.
+    const story = typeof b.id === 'string' ? findLibraryStory(b.id) : undefined;
+    if (!story) return { status: 404, body: { status: 'INVALID_REQUEST', errors: ['unknown library story'] } };
+    const age = Number(b.age);
+    return { status: 200, body: await issueAudioToken(story.title, libraryAudioScript(story), env, Number.isFinite(age) ? age : undefined) };
+  }
 
   if (b.action === 'tts-voices') {
     return { status: 200, body: { voices: AUDITION_VOICES, current: env.TTS_VOICE || DEFAULT_TTS_VOICE } };
@@ -79,7 +94,7 @@ export async function handleTts(
     // tts-render
     const payload = await openJson<AudioTokenPayload>(b.audioToken, secretOf(env), PURPOSE);
     if (!payload || payload.v !== 1) return { status: 400, body: { status: 'INVALID_REQUEST', errors: ['invalid audioToken'] } };
-    const chunks = chunksFor(payload.script, env);
+    const chunks = chunksFor(payload.script, env, payload.age);
     const index = Number(b.chunk);
     if (!Number.isInteger(index) || index < 0 || index >= chunks.length) {
       return { status: 400, body: { status: 'INVALID_REQUEST', errors: [`chunk must be 0–${chunks.length - 1}`] } };

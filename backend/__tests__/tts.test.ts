@@ -50,3 +50,15 @@ describe('backend text-to-speech', () => {
     expect(calls[0]).toContain('"voice":"Gacrux"');
   });
 });
+
+describe('library voice', () => {
+  it('issues an audio token for a known library story id only', async () => {
+    const env = { GEMINI_API_KEY: 'k' };
+    const ok = await handleGenerateStory({ action: 'library-voice', id: 'manu-red-ball', age: 2 }, env, quiet);
+    expect(ok.status).toBe(200);
+    expect(typeof ok.body.audioToken).toBe('string');
+    expect(ok.body.audioChunks).toBeGreaterThan(0);
+    const bad = await handleGenerateStory({ action: 'library-voice', id: 'make-aaji-say-this', age: 2 }, env, quiet);
+    expect(bad.status).toBe(404);
+  });
+});

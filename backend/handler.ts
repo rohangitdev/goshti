@@ -161,7 +161,7 @@ export async function handleGenerateStory(
 
   const { trace, ...rest } = result;
   // Approved stories get a sealed token the client can use to request Aaji's voice.
-  const audio = result.status === 'APPROVED' ? await issueAudioToken(result.story.title, result.story.audioScript, env) : {};
+  const audio = result.status === 'APPROVED' ? await issueAudioToken(result.story.title, result.story.audioScript, env, result.story.age) : {};
   return {
     status: STATUS_CODE[result.status],
     body: { ...rest, ...audio, provider: providerInfo, ...(includeTrace && { trace }) },

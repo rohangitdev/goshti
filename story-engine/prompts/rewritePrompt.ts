@@ -29,7 +29,7 @@ character identity,
 audio-first rhythm,
 warm narration.
 
-Fix the issues identified by the critic. Safety problems, loose threads and Hindi words must be fully removed — replace Hindi words with natural Marathi, replace any dangerous imitable action with a safe imaginative alternative, and either pay off or remove every loose element.
+Fix the issues identified by the critic. Safety problems, loose threads, Hindi words, hard bookish words and hard-to-say names must be fully removed — replace Hindi words with natural Marathi, hard words with the simple everyday word, hard names with short easy names (everywhere in the story), replace any dangerous imitable action with a safe imaginative alternative, and either pay off or remove every loose element.
 
 Do not add an explicit moral lesson.
 

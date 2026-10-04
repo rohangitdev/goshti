@@ -17,7 +17,11 @@ export default function GeneratingScreen() {
     return { category: params.category, mode, userIdea: mode === 'CUSTOM' ? params.idea : undefined };
   }, [params.category, params.mode, params.idea]);
 
-  const { state, progressLabel, retry } = useStoryGeneration(input);
+  const { state, progressLabel, retry, playLibrary } = useStoryGeneration(input);
+  const openLibraryStory = async () => {
+    const id = await playLibrary();
+    router.replace({ pathname: '/story/[id]', params: { id } });
+  };
   const [slow, setSlow] = useState(false);
 
   // Real stories are planned, written and reviewed — this can take a minute or two.
@@ -35,7 +39,14 @@ export default function GeneratingScreen() {
   // Child-facing: a calm message only, never an upgrade prompt.
   if (state.status === 'limit') {
     return (
-      <Screen footer={<BigButton label="माझ्या गोष्टी ऐका" onPress={() => router.replace('/stories')} />}>
+      <Screen
+        footer={
+          <>
+            <BigButton label="आजीची आवडती गोष्ट ऐका" onPress={openLibraryStory} />
+            <BigButton variant="secondary" label="माझ्या गोष्टी ऐका" onPress={() => router.replace('/stories')} />
+          </>
+        }
+      >
         <View style={styles.center}>
           <AajiIllustration size={200} />
           <AppText variant="heading" center>
@@ -77,7 +88,8 @@ export default function GeneratingScreen() {
       <Screen
         footer={
           <>
-            <BigButton label="पुन्हा प्रयत्न करा" onPress={retry} />
+            <BigButton label="आजीची आवडती गोष्ट ऐका" onPress={openLibraryStory} />
+            <BigButton variant="secondary" label="पुन्हा प्रयत्न करा" onPress={retry} />
             <BigButton variant="secondary" label="मागे जा" onPress={() => router.dismissTo('/home')} />
           </>
         }

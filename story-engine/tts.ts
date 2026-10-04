@@ -27,7 +27,8 @@ export interface TtsChunk {
 /** Aaji's base voice direction. Override with TTS_STYLE. */
 export const DEFAULT_AAJI_STYLE =
   'a warm, affectionate Marathi grandmother (आजी) telling a story to a small child at home; ' +
-  'slow, clear and expressive, natural Marathi pronunciation, a gentle smile in the voice, never rushed';
+  'speaking SLOWLY — clearly slower than normal conversation, the way you read to a small child so they can follow every word — ' +
+  'clear and expressive, natural Marathi pronunciation, a gentle smile in the voice, short natural pauses between sentences, never rushed';
 
 const EMOTION_STYLE: Record<NarratorEmotion, string> = {
   warm: 'warm and loving',
@@ -71,6 +72,13 @@ export interface ChunkOptions {
   targetChars?: number;
   /** Force a chunk boundary after this many characters. */
   maxChars?: number;
+  /** Add a short pause after every sentence (for the youngest listeners). */
+  sentencePauses?: boolean;
+}
+
+/** Inserts a short pause tag after each sentence end (। . ! ?) that isn't already followed by one. */
+export function addSentencePauses(text: string): string {
+  return text.replace(/([.!?।])(\s+)(?!<)/g, '$1 <short pause>$2');
 }
 
 export function buildTtsChunks(script: AudioScript, options: ChunkOptions = {}): TtsChunk[] {
@@ -89,7 +97,8 @@ export function buildTtsChunks(script: AudioScript, options: ChunkOptions = {}):
     chars = 0;
   };
 
-  const add = (text: string, style: string) => {
+  const add = (raw: string, style: string) => {
+    const text = options.sentencePauses ? addSentencePauses(raw) : raw;
     const last = current.parts[current.parts.length - 1];
     if (last && last.style === style) last.text = `${last.text} ${text}`;
     else current.parts.push({ text, style });

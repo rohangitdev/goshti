@@ -28,6 +28,8 @@ export type VoiceStates = Record<string, VoiceState>;
 /** Talks to the backend's tts-render action. */
 export interface VoiceClient {
   renderChunk(token: string, chunk: number): Promise<{ base64: string; pauseAfterMs: number }>;
+  /** Voice ticket for a built-in library story (null if the backend has no voice). */
+  libraryTicket?(libraryId: string, age: number): Promise<VoiceTicket | null>;
 }
 
 /** Where audio parts live on the device. */
@@ -146,6 +148,17 @@ export class BackendVoiceClient implements VoiceClient {
     private readonly headers: Record<string, string>,
     private readonly timeoutMs = 120_000,
   ) {}
+
+  async libraryTicket(libraryId: string, age: number): Promise<VoiceTicket | null> {
+    const res = await fetch(this.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...this.headers },
+      body: JSON.stringify({ action: 'library-voice', id: libraryId, age }),
+    });
+    const body = (await res.json().catch(() => null)) as { audioToken?: string; audioChunks?: number; ttsAvailable?: boolean } | null;
+    if (!res.ok || !body?.ttsAvailable || !body.audioToken || !body.audioChunks) return null;
+    return { token: body.audioToken, totalChunks: body.audioChunks };
+  }
 
   async renderChunk(token: string, chunk: number) {
     const controller = new AbortController();
