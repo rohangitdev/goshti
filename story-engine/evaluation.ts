@@ -1,3 +1,4 @@
+import { findHindiWords, HINDI_WORDS } from './hindiWords';
 import type { DevelopmentalProfile } from './profiles';
 import { CHECK_KEYS, type CheckKey, type ScoreKey, type StoryEvaluation, type WrittenStory } from './schemas';
 
@@ -58,6 +59,16 @@ export function localStoryChecks(
   }
   if (/बोध\s*मिळतो|तात्पर्य/.test(story.storyText)) {
     failures.push('explicit moral summary detected');
+  }
+  const hindi = findHindiWords(story.title + ' ' + story.storyText);
+  if (hindi.length) {
+    failures.push(`Hindi words — replace with Marathi: ${hindi.map((w) => `${w} → ${HINDI_WORDS[w]}`).join(', ')}`);
+  }
+  // Spoken lines must be quoted so the narrator can switch voices.
+  const hasQuotes = /["“”]/.test(story.storyText);
+  const speechVerbs = (story.storyText.match(/म्हणाल[ाीे]|म्हणतो|म्हणते|ओरडल[ाीे]|विचारल[ंे]/g) ?? []).length;
+  if (!hasQuotes && speechVerbs >= 1) {
+    failures.push('spoken lines are not in double quotes');
   }
   return failures;
 }

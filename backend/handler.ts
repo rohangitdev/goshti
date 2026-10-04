@@ -20,6 +20,8 @@ export interface BackendEnv {
   GEMINI_MODEL?: string;
   GEMINI_WRITER_MODEL?: string;
   GEMINI_CRITIC_MODEL?: string;
+  /** Fast model for classifier + audio direction (default gemini-3.5-flash-lite). */
+  GEMINI_FAST_MODEL?: string;
   /** Used when the main model is overloaded. "none" disables. */
   GEMINI_FALLBACK_MODEL?: string;
   /** minimal | low | medium | high | auto — one thinking level for all stages (default: per stage). */
@@ -67,6 +69,7 @@ export function createProvider(env: BackendEnv, deadlineAt?: number): { provider
         model: env.GEMINI_MODEL,
         writerModel: env.GEMINI_WRITER_MODEL,
         criticModel: env.GEMINI_CRITIC_MODEL,
+        fastModel: env.GEMINI_FAST_MODEL,
         fallbackModel: env.GEMINI_FALLBACK_MODEL,
         thinking: (['minimal', 'low', 'medium', 'high', 'auto'] as const).find((l) => l === env.GEMINI_THINKING),
         deadlineAt,

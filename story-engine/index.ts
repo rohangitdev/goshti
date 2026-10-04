@@ -6,6 +6,7 @@
 export * from './audio';
 export * from './categories';
 export * from './evaluation';
+export * from './hindiWords';
 export * from './logging';
 export * from './pipeline';
 export * from './profiles';

@@ -86,6 +86,7 @@ export const PROFILES: Record<DevelopmentalProfileId, DevelopmentalProfile> = {
     safetyNotes: [
       'Be very conservative with being lost, separation from caregivers, monsters, injury, death, abandonment and threatening adults.',
       'Any tiny worry must resolve almost immediately.',
+      'Never show a character doing anything a toddler could copy dangerously (climbing, heights, balconies, fire, water, putting things in the mouth). Use pretend play instead.',
     ],
     audioNotes: 'Sounds, repetition and pauses can be prominent. Slow, warm, playful delivery.',
   },
@@ -116,6 +117,7 @@ export const PROFILES: Record<DevelopmentalProfileId, DevelopmentalProfile> = {
     safetyNotes: [
       'Be conservative with being lost, separation from caregivers, monsters, injury, death and threatening adults.',
       'A small fear may appear only if clearly fictional, manageable and quickly resolved.',
+      'Never show a character doing anything a child could copy dangerously (climbing balconies or stacked furniture, fire, deep water, electricity, medicines, strangers, roads).',
     ],
     audioNotes: 'Expressive but not hyper; sound effects support key moments only.',
   },

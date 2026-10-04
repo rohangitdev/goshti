@@ -179,6 +179,12 @@ export const CHECK_KEYS = [
   'ageMismatch',
   'repetitiveAIPhrasing',
   'copyrightSimilarityConcern',
+  /** A child could copy something dangerous (climbing balconies, fire, water, medicines, strangers…). */
+  'imitableDanger',
+  /** Objects, characters or events introduced and never used / resolved; story feels disconnected. */
+  'looseThreads',
+  /** Any Hindi word or Hindi-style construction instead of Marathi. */
+  'hindiWords',
 ] as const;
 export type CheckKey = (typeof CHECK_KEYS)[number];
 

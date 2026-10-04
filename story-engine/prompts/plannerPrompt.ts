@@ -39,6 +39,10 @@ Create a plan with:
 - warm closure
 - one positive value shown through events (never stated as a lesson)
 
+Plan only SAFE attempts: the protagonist must never do anything a child could dangerously copy (climbing balconies/windows/stacked furniture, jumping from heights, fire, deep water, electricity, medicines, strangers, roads). For ages 2–5 use imaginative, safe alternatives.
+
+Keep the story connected: every object, character and event in the plan must matter to the goal and be paid off by the end. No decorative details that lead nowhere.
+
 The problem must be solved mainly by the protagonist's own actions — not by adults rescuing everybody, unexplained magic, coincidence or luck.
 
 For ages 2–3:

@@ -44,18 +44,21 @@ Calibration:
 0–3 = unusable.
 A generic, technically correct Marathi story is a 6, not an 8.
 
-Also determine (true = problem present):
+Also determine (true = problem present). ANY true flag rejects the story:
 
-unsafeContent
+unsafeContent — anything unsafe for this age.
 tooScary
 tooPreachy
-englishLeakage
+englishLeakage — ONLY heavy English, or English written in Latin letters. Occasional everyday English words that Marathi families commonly use (बाय बाय, टीव्ही, बस, सॉरी) are fine.
 confusingPlot
 abruptEnding
 overstimulating
 ageMismatch
 repetitiveAIPhrasing
 copyrightSimilarityConcern
+imitableDanger — a child listener could copy something dangerous the characters do: climbing balconies, windows, railings, terraces or stacked furniture; jumping from heights; fire, matches, stoves, candles, crackers; deep water, wells, rivers, bathtubs alone; electricity and sockets; medicines or unknown things in the mouth; knives or sharp tools; going off with strangers; leaving home alone; road and traffic play. Be strict for ages 2–5 (true even if it ends well). For ages 6–9 it is true when the risky act is shown as fun or rewarded without a safe adult or a clear safety turn.
+looseThreads — something is introduced (an object, character, question or event) and never used, explained or resolved; or a scene does not connect to the goal. Every element must matter. A story that feels like a list of unrelated moments is true.
+hindiWords — ANY Hindi word or Hindi-style phrasing instead of natural Marathi (for example बाल्टी instead of बादली, लेकिन, बहुत, पानी, भी, नहीं, अंदर, बाहर). Even one is true.
 
 Ask yourself:
 
@@ -72,6 +75,12 @@ Does the protagonist have agency, or is the problem solved by adults, magic, coi
 Does the story contain emotional movement?
 
 Is any humour genuinely enjoyable?
+
+Could a small child copy anything dangerous from this story?
+
+Is every object, character and question introduced actually used and paid off? Does each scene connect to the next?
+
+Is there any Hindi word or phrasing?
 
 Does the surprise make sense?
 

@@ -7,6 +7,7 @@
 //   GEMINI_API_KEY   required for real stories (mock stories without it)
 //   GEMINI_MODEL     optional, default gemini-3.5-flash
 //   GEMINI_WRITER_MODEL / GEMINI_CRITIC_MODEL   optional per-role overrides
+//   GEMINI_FAST_MODEL  classifier + audio direction (default gemini-3.5-flash-lite)
 //   GEMINI_FALLBACK_MODEL   used when the main model is overloaded (default gemini-3.5-flash-lite, "none" = off)
 //   GEMINI_THINKING  minimal|low|medium|high|auto for all stages (default: per stage)
 //   STORY_DEBUG=false   stop returning the developer trace
@@ -21,6 +22,7 @@ const ENV_KEYS = [
   'GEMINI_MODEL',
   'GEMINI_WRITER_MODEL',
   'GEMINI_CRITIC_MODEL',
+  'GEMINI_FAST_MODEL',
   'GEMINI_FALLBACK_MODEL',
   'GEMINI_THINKING',
   'STORY_DEBUG',

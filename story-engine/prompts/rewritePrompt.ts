@@ -29,13 +29,13 @@ character identity,
 audio-first rhythm,
 warm narration.
 
-Fix the issues identified by the critic.
+Fix the issues identified by the critic. Safety problems, loose threads and Hindi words must be fully removed — replace Hindi words with natural Marathi, replace any dangerous imitable action with a safe imaginative alternative, and either pay off or remove every loose element.
 
 Do not add an explicit moral lesson.
 
 Do not mention the review process.
 
-Keep dialogue in double quotes and paragraphs short, separated by blank lines.
+Keep every spoken line in double quotes and paragraphs short, separated by blank lines.
 
 Return the revised story (title and full storyText) in the expected structured format.
 

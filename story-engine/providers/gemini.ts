@@ -40,6 +40,15 @@ import {
 } from '../schemas';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+/** Small, fast model for mechanical stages (classifier, audio direction). GEMINI_FAST_MODEL. */
+export const DEFAULT_FAST_MODEL = 'gemini-3.5-flash-lite';
+
+/**
+ * Stages where story quality is decided. They never fall back to a "lite" model:
+ * a weak writer or a lenient critic is worse than waiting and retrying.
+ */
+export const QUALITY_STAGES = new Set(['createPlan', 'generateStory', 'rewriteStory', 'evaluateStory']);
+const isLite = (model: string) => /lite/i.test(model);
 /**
  * Tried in order when the main model is overloaded or its quota is used up
  * (free tier: each model has its own small daily request allowance).
@@ -91,6 +100,8 @@ export interface GeminiConfig {
   /** Optional per-role overrides (GEMINI_WRITER_MODEL, GEMINI_CRITIC_MODEL). */
   writerModel?: string;
   criticModel?: string;
+  /** Model for mechanical stages: classifier and audio direction. */
+  fastModel?: string;
   /** Model to switch to when the configured one is overloaded (GEMINI_FALLBACK_MODEL). "none" disables. */
   fallbackModel?: string;
   /**
@@ -168,13 +179,14 @@ export class GeminiProvider implements StoryAIProvider {
     const base = config.model || DEFAULT_GEMINI_MODEL;
     const writer = config.writerModel || base;
     const critic = config.criticModel || base;
+    const fast = config.fastModel || DEFAULT_FAST_MODEL;
     this.models = {
-      classifyIntent: base,
+      classifyIntent: fast,
       createPlan: writer,
       generateStory: writer,
       rewriteStory: writer,
       evaluateStory: critic,
-      createAudioScript: base,
+      createAudioScript: fast,
     };
     this.fetchImpl = config.fetchImpl ?? fetch;
   }
@@ -191,9 +203,12 @@ export class GeminiProvider implements StoryAIProvider {
   }
 
   /** Main model first, then fallbacks; models with exhausted quota are skipped. */
-  private candidates(primary: string): string[] {
+  private candidates(primary: string, stage: string): string[] {
     const now = Date.now();
-    const list = [primary, ...this.fallbackModels.filter((m) => m !== primary)];
+    let fallbacks = this.fallbackModels.filter((m) => m !== primary);
+    if (QUALITY_STAGES.has(stage)) fallbacks = fallbacks.filter((m) => !isLite(m));
+    else fallbacks = [...new Set([...fallbacks, this.config.model || DEFAULT_GEMINI_MODEL])].filter((m) => m !== primary);
+    const list = [primary, ...fallbacks];
     const usable = list.filter((m) => (exhaustedUntil.get(m) ?? 0) <= now);
     return usable.length ? usable : [primary];
   }
@@ -330,7 +345,7 @@ export class GeminiProvider implements StoryAIProvider {
     };
 
     const delays = this.config.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
-    const models = this.candidates(spec.model);
+    const models = this.candidates(spec.model, spec.stage);
     let index = 0;
     let model = models[0];
     let retry = 0;

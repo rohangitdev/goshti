@@ -38,7 +38,7 @@ describe('GeminiProvider', () => {
 
   it('sends the key as a header (never in the URL), strict safety settings and a JSON schema', async () => {
     const { impl, requests } = fakeFetch([{ body: geminiResponse('{"intent":"STORY_REQUEST","reason":"idea"}') }]);
-    const p = new GeminiProvider({ apiKey: 'secret-key', model: 'gemini-test', fetchImpl: impl });
+    const p = new GeminiProvider({ apiKey: 'secret-key', fastModel: 'gemini-test', fetchImpl: impl });
     const r = await p.classifyIntent({ idea: request.userIdea!, request });
     expect(r.intent).toBe('STORY_REQUEST');
     const req = requests[0];
@@ -172,6 +172,22 @@ describe('GeminiProvider', () => {
     const p = new GeminiProvider({ apiKey: 'k', model: 'base', writerModel: 'writer', criticModel: 'critic' });
     expect(p.models.generateStory).toBe('writer');
     expect(p.models.evaluateStory).toBe('critic');
-    expect(p.models.classifyIntent).toBe('base');
+    expect(p.models.classifyIntent).toBe('gemini-3.5-flash-lite'); // fast model for mechanical stages
+    expect(p.models.createAudioScript).toBe('gemini-3.5-flash-lite');
+  });
+
+  it('never lets writer or critic fall back to a lite model', async () => {
+    const busy = { status: 503, body: { error: { message: 'high demand' } } };
+    const { impl, requests } = fakeFetch(Array.from({ length: 10 }, () => busy));
+    const p = new GeminiProvider({
+      apiKey: 'k',
+      model: 'strong-x',
+      fallbackModel: 'tiny-lite-x,strong-y',
+      retryDelaysMs: [0],
+      fetchImpl: impl,
+    });
+    await expect(p.evaluateStory({ request, profile: resolveProfile(6), plan: samplePlan, story: { title: 'अ', storyText: 'ब' } })).rejects.toBeInstanceOf(ProviderError);
+    const used = new Set(requests.map((r) => r.url.split('/models/')[1].split(':')[0]));
+    expect([...used]).toEqual(['strong-x', 'strong-y']);
   });
 });

@@ -14,6 +14,8 @@ Your task is to turn the supplied StoryPlan into an exceptional Marathi story de
 
 Write entirely in natural Devanagari Marathi except where a word is genuinely unavoidable.
 
+Never use Hindi words or Hindi-style phrasing — write Marathi words (बादली, not बाल्टी; पाणी, not पानी; पण, not लेकिन/भी; खूप, not बहुत; आत/बाहेर, not अंदर/बाहर). Occasional everyday English words that Marathi families use (बाय बाय, टीव्ही, बस) are acceptable but keep them rare.
+
 Do not explain your process.
 
 Do not include planning notes.
@@ -56,6 +58,16 @@ AAJI NARRATOR:
 The narration should feel warm, playful, curious and reassuring, like a caring fictional storyteller.
 
 Do not make Aaji overly sentimental. Not every sentence needs to be sweet.
+
+SAFETY — NOTHING A CHILD COULD COPY DANGEROUSLY:
+
+Children copy what heroes do. Characters must never model dangerous actions a child could imitate: climbing balconies, windows, railings, terraces or stacked furniture; jumping from heights; fire, matches, stoves, candles, crackers; deep water, wells, rivers or bathtubs alone; electricity and sockets; putting medicines or unknown things in the mouth; knives or sharp tools; going off with strangers; leaving home alone; playing on roads.
+For ages 2–5 avoid these completely — find a safe, imaginative alternative (pretend play, a drawing, a toy rocket, a cardboard box, a grown-up helping).
+For ages 6–9 a risky moment may appear only if a caring adult is present or the story clearly shows the safe choice — never as fun to copy.
+
+CONNECTED STORY — NO LOOSE THREADS:
+
+Every object, character, sound and question you introduce must matter and pay off later. Do not add random details (a glove that appears from nowhere, a question that is never answered). Each scene must follow from the previous one and move towards the goal. The ending should tie the threads together.
 
 CHARACTERS:
 
@@ -177,7 +189,7 @@ onomatopoeia where appropriate,
 short and medium length sentences,
 clear transitions.
 
-Put spoken dialogue in double quotes "like this" and make clear who is speaking.
+EVERY spoken line — including the hero talking to themselves and Aaji's questions to the listener — must be inside double quotes "like this", and make clear who is speaking. The audio narrator uses the quotes to switch voices.
 
 Avoid:
 huge paragraphs,
