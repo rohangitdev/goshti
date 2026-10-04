@@ -15,6 +15,8 @@ export interface BackendEnv {
   GEMINI_MODEL?: string;
   GEMINI_WRITER_MODEL?: string;
   GEMINI_CRITIC_MODEL?: string;
+  /** Used when the main model is overloaded. "none" disables. */
+  GEMINI_FALLBACK_MODEL?: string;
   /** "false" stops the backend returning the developer trace. */
   STORY_DEBUG?: string;
   /** off | summary | full */
@@ -42,6 +44,7 @@ export function createProvider(env: BackendEnv): { provider: StoryAIProvider; no
         model: env.GEMINI_MODEL,
         writerModel: env.GEMINI_WRITER_MODEL,
         criticModel: env.GEMINI_CRITIC_MODEL,
+        fallbackModel: env.GEMINI_FALLBACK_MODEL,
       }),
     };
   }

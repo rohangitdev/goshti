@@ -7,6 +7,7 @@
 //   GEMINI_API_KEY   required for real stories (mock stories without it)
 //   GEMINI_MODEL     optional, default gemini-3.8-flash
 //   GEMINI_WRITER_MODEL / GEMINI_CRITIC_MODEL   optional per-role overrides
+//   GEMINI_FALLBACK_MODEL   used when the main model is overloaded (default gemini-3.5-flash, "none" = off)
 //   STORY_DEBUG=false   stop returning the developer trace
 //   STORY_LOG=off|summary|full
 import { CORS_HEADERS, handleGenerateStory } from './_bundle/handler.mjs';
@@ -16,6 +17,7 @@ const ENV_KEYS = [
   'GEMINI_MODEL',
   'GEMINI_WRITER_MODEL',
   'GEMINI_CRITIC_MODEL',
+  'GEMINI_FALLBACK_MODEL',
   'STORY_DEBUG',
   'STORY_LOG',
   'STORY_TIME_BUDGET_MS',

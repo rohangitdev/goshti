@@ -220,7 +220,7 @@ function render(data, ms) {
     section('Model used', json(data.provider)),
     section('Latency', `<table><tr><th>Stage</th><th>Time</th><th>Model</th></tr>${timings}<tr><td><b>Total (server)</b></td><td class="num"><b>${((t.totalMs || 0) / 1000).toFixed(1)}s</b></td><td></td></tr></table>`),
     section('Attempt count', `<p>${t.attemptCount ?? 0} of 3</p>`),
-    section('Errors', (t.errors?.length || data.errors?.length || data.reason) ? `<pre class="err">${esc([...(t.errors || []), ...(data.errors || []), data.reason].filter(Boolean).join('\n'))}</pre>` : '<p class="muted">None</p>', { open: !ok && !data.message }),
+    section('Errors', (t.errors?.length || data.errors?.length || data.reason) ? `<pre class="err">${esc([...new Set([...(t.errors || []), ...(data.errors || []), data.reason].filter(Boolean))].join('\n'))}</pre>` : '<p class="muted">None</p>', { open: !ok && !data.message }),
   ].join('');
   $('sections').innerHTML = html;
   $('empty').classList.add('hidden');

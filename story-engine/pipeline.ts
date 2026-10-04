@@ -64,7 +64,7 @@ export async function generateStory(
     try {
       return await fn();
     } finally {
-      trace.timings.push({ stage: name, attempt, ms: now() - t0, model: provider.models[name] });
+      trace.timings.push({ stage: name, attempt, ms: now() - t0, model: provider.modelUsedFor?.(name) ?? provider.models[name] });
     }
   }
 

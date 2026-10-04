@@ -42,6 +42,8 @@ export interface StoryAIProvider {
   readonly name: string;
   /** Model used per operation, for the developer trace. */
   readonly models: Record<string, string>;
+  /** Model that actually served a stage (after any fallback). Optional. */
+  modelUsedFor?(stage: string): string | undefined;
   classifyIntent(input: { idea: string; request: StoryRequest }): Promise<IntentResult>;
   createPlan(input: PlanInput): Promise<StoryPlan>;
   generateStory(input: WriteInput): Promise<WrittenStory>;
@@ -53,6 +55,7 @@ export interface StoryAIProvider {
 export type ProviderErrorCode =
   | 'NOT_CONFIGURED'
   | 'RATE_LIMITED'
+  | 'OVERLOADED'
   | 'BLOCKED'
   | 'MALFORMED_OUTPUT'
   | 'HTTP_ERROR'

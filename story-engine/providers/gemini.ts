@@ -40,6 +40,10 @@ import {
 } from '../schemas';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
+/** Used when the main model is overloaded. Set GEMINI_FALLBACK_MODEL=none to disable. */
+export const DEFAULT_FALLBACK_MODEL = 'gemini-3.5-flash';
+/** Waits between retries when Google reports high demand / rate limits. */
+export const DEFAULT_RETRY_DELAYS_MS = [2000, 5000, 10000];
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export interface GeminiConfig {
@@ -49,6 +53,10 @@ export interface GeminiConfig {
   /** Optional per-role overrides (GEMINI_WRITER_MODEL, GEMINI_CRITIC_MODEL). */
   writerModel?: string;
   criticModel?: string;
+  /** Model to switch to when the configured one is overloaded (GEMINI_FALLBACK_MODEL). "none" disables. */
+  fallbackModel?: string;
+  /** Delays between retries on overload / rate limit. */
+  retryDelaysMs?: number[];
   /** Per-call timeout. */
   requestTimeoutMs?: number;
   fetchImpl?: typeof fetch;
@@ -102,6 +110,8 @@ export class GeminiProvider implements StoryAIProvider {
   readonly models: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
   private schemaSupported = true;
+  /** Model that actually answered each stage last (differs from `models` after a fallback). */
+  private readonly lastUsed: Record<string, string> = {};
 
   constructor(private readonly config: GeminiConfig) {
     if (!config.apiKey) throw new ProviderError('NOT_CONFIGURED', 'GEMINI_API_KEY is not set');
@@ -117,6 +127,15 @@ export class GeminiProvider implements StoryAIProvider {
       createAudioScript: base,
     };
     this.fetchImpl = config.fetchImpl ?? fetch;
+  }
+
+  modelUsedFor(stage: string): string | undefined {
+    return this.lastUsed[stage] ?? this.models[stage];
+  }
+
+  private get fallbackModel(): string | null {
+    const f = this.config.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
+    return !f || f === 'none' ? null : f;
   }
 
   async classifyIntent(input: { idea: string; request: StoryRequest }): Promise<IntentResult> {
@@ -246,12 +265,17 @@ export class GeminiProvider implements StoryAIProvider {
       safetySettings: SAFETY_SETTINGS,
     };
 
-    for (let retry = 0; ; retry++) {
+    const delays = this.config.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+    let model = spec.model;
+    let retry = 0;
+    let switched = false;
+
+    for (;;) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs ?? 120_000);
       let res: Response;
       try {
-        res = await this.fetchImpl(`${API_BASE}/models/${encodeURIComponent(spec.model)}:generateContent`, {
+        res = await this.fetchImpl(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
           body: JSON.stringify(body),
@@ -274,12 +298,30 @@ export class GeminiProvider implements StoryAIProvider {
           delete generationConfig.responseJsonSchema;
           continue;
         }
-        if ((res.status === 429 || res.status >= 500) && retry < 2) {
-          await sleep(res.status === 429 ? 4000 * (retry + 1) : 1500);
-          continue;
+        const overloaded = res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504;
+        if (overloaded) {
+          if (retry < delays.length) {
+            await sleep(delays[retry]);
+            retry += 1;
+            continue;
+          }
+          // Still busy: try the fallback model once (with a fresh, shorter retry budget).
+          const fallback = this.fallbackModel;
+          if (!switched && fallback && fallback !== model) {
+            model = fallback;
+            switched = true;
+            retry = Math.max(0, delays.length - 1);
+            continue;
+          }
+          throw new ProviderError(
+            res.status === 429 ? 'RATE_LIMITED' : 'OVERLOADED',
+            `${message} (model ${model}, after ${retry} retries${switched ? ' incl. fallback' : ''})`,
+            spec.stage,
+          );
         }
-        throw new ProviderError(res.status === 429 ? 'RATE_LIMITED' : 'HTTP_ERROR', message, spec.stage);
+        throw new ProviderError('HTTP_ERROR', message, spec.stage);
       }
+      this.lastUsed[spec.stage] = model;
 
       if (json.promptFeedback?.blockReason) {
         throw new ProviderError('BLOCKED', json.promptFeedback.blockReason, spec.stage);

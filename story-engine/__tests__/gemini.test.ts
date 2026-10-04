@@ -97,6 +97,34 @@ describe('GeminiProvider', () => {
     expect(String(err.message)).not.toContain('super-secret');
   });
 
+  it('retries when Google reports high demand, then switches to the fallback model', async () => {
+    const busy = { status: 503, body: { error: { message: 'This model is currently experiencing high demand.' } } };
+    const { impl, requests } = fakeFetch([busy, busy, busy, busy, { body: geminiResponse('{"title":"अ","storyText":"ब"}') }]);
+    const p = new GeminiProvider({ apiKey: 'k', model: 'main', fallbackModel: 'backup', retryDelaysMs: [0, 0, 0], fetchImpl: impl });
+    const story = await p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan });
+    expect(story.title).toBe('अ');
+    expect(requests.slice(0, 4).every((r) => r.url.includes('/models/main:'))).toBe(true);
+    expect(requests[4].url).toContain('/models/backup:');
+    expect(p.modelUsedFor('generateStory')).toBe('backup');
+  });
+
+  it('gives up with OVERLOADED when the fallback is busy too', async () => {
+    const busy = { status: 503, body: { error: { message: 'high demand' } } };
+    const { impl } = fakeFetch(Array.from({ length: 10 }, () => busy));
+    const p = new GeminiProvider({ apiKey: 'k', model: 'main', fallbackModel: 'backup', retryDelaysMs: [0, 0], fetchImpl: impl });
+    await expect(p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan })).rejects.toMatchObject({
+      code: 'OVERLOADED',
+    });
+  });
+
+  it('can disable the fallback model', async () => {
+    const busy = { status: 503, body: { error: { message: 'high demand' } } };
+    const { impl, requests } = fakeFetch(Array.from({ length: 10 }, () => busy));
+    const p = new GeminiProvider({ apiKey: 'k', model: 'main', fallbackModel: 'none', retryDelaysMs: [0], fetchImpl: impl });
+    await expect(p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan })).rejects.toBeInstanceOf(ProviderError);
+    expect(requests.every((r) => r.url.includes('/models/main:'))).toBe(true);
+  });
+
   it('allows per-role model overrides', () => {
     const p = new GeminiProvider({ apiKey: 'k', model: 'base', writerModel: 'writer', criticModel: 'critic' });
     expect(p.models.generateStory).toBe('writer');
