@@ -36,7 +36,7 @@ const SIGNATURE: SoundSource = require('../../assets/audio/signature/goshti-sign
 
 const SFX: Record<SfxId, SoundSource | null> = {
   BIRDS: require('../../assets/audio/sfx/birds.wav'),
-  RAIN_LIGHT: require('../../assets/audio/ambience/rain_light.wav'),
+  RAIN_LIGHT: null, // synthesized water sounded artificial — needs a real recording
   RAIN_HEAVY: null,
   WIND: require('../../assets/audio/sfx/wind.wav'),
   FOOTSTEPS: require('../../assets/audio/sfx/footsteps.wav'),
@@ -52,7 +52,7 @@ const SFX: Record<SfxId, SoundSource | null> = {
   BELL: require('../../assets/audio/sfx/bell.wav'),
   THUNDER_GENTLE: require('../../assets/audio/sfx/thunder_gentle.wav'),
   MAGIC_SPARKLE: require('../../assets/audio/sfx/magic_sparkle.wav'),
-  SPLASH: require('../../assets/audio/sfx/splash.wav'),
+  SPLASH: null, // synthesized water sounded artificial — needs a real recording
   BRANCH_SNAP: require('../../assets/audio/sfx/branch_snap.wav'),
   CLAP: require('../../assets/audio/sfx/clap.wav'),
   LAUGHTER: null,
@@ -60,8 +60,8 @@ const SFX: Record<SfxId, SoundSource | null> = {
   NIGHT_AMBIENCE: require('../../assets/audio/ambience/night_ambience.wav'),
   VILLAGE_AMBIENCE: require('../../assets/audio/ambience/village_ambience.wav'),
   CITY_AMBIENCE: require('../../assets/audio/ambience/city_ambience.wav'),
-  WATER_STREAM: require('../../assets/audio/ambience/water_stream.wav'),
-  WAVES: require('../../assets/audio/ambience/waves.wav'),
+  WATER_STREAM: null, // synthesized water sounded artificial — needs a real recording
+  WAVES: null, // synthesized water sounded artificial — needs a real recording
   CLOCK_TICK: require('../../assets/audio/sfx/clock_tick.wav'),
   OBJECT_DROP: require('../../assets/audio/sfx/object_drop.wav'),
   WHOOSH_SOFT: require('../../assets/audio/sfx/whoosh_soft.wav'),

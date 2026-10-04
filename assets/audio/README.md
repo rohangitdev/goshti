@@ -4,9 +4,9 @@
 |--------------|-----------------------------------------------------------|-----------------------------------------------|
 | `ui/`        | Restrained interface sounds (`uiSoundService`)            | soft (0.35)                                   |
 | `signature/` | GOSHTI signature, before Aaji's intro line                | 0.6                                           |
-| `sfx/`       | One-shot story effects (approved ids only)                | secondary, by age (0.40–0.55)                 |
-| `ambience/`  | Looping background beds                                   | low (0.11–0.13)                               |
-| `music/`     | Short, occasional mood cues                               | very low (0.06–0.08)                          |
+| `sfx/`       | One-shot story effects (approved ids only)                | secondary, by age (0.35–0.50)                 |
+| `ambience/`  | Scene-setting beds (~20 s, then fade)                     | low (0.07–0.09)                               |
+| `music/`     | Short, occasional mood cues                               | very low (0.04–0.06)                          |
 
 Aaji's narration always plays at full level; everything else sits underneath it.
 
@@ -26,3 +26,11 @@ These need real, licensed recordings (synthesizing them convincingly isn't possi
 added and registered in `src/services/soundAssets.ts`, the player silently skips them:
 
 `CAT_MEOW`, `DOG_BARK`, `ELEPHANT`, `LION`, `LAUGHTER`, `RAIN_HEAVY`
+
+Generated but **switched off** (the synthesized water sounded artificial): `WATER_STREAM`, `WAVES`,
+`RAIN_LIGHT`, `SPLASH`. The files remain for reference; register real recordings to turn them back on.
+
+## How often sounds play
+
+- Ambience sets the scene for ~20 s, then fades out (it does not loop under the whole story).
+- One-shot effects are at least ~15 s apart, and capped per minute by age (3 / 2 / 2 / 1).

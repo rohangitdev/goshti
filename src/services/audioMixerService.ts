@@ -12,7 +12,7 @@
  * produce one pre-mixed file per story from the same AudioScript; the app would then simply
  * play that file (the AudioService interface stays the same).
  */
-import { isAmbienceId, SIGNATURE_LEVEL, soundPolicyFor, type MixLevels, type MusicMood, type SfxId } from '@engine/index';
+import { AMBIENCE_HOLD_MS, isAmbienceId, MIN_SFX_GAP_MS, SIGNATURE_LEVEL, soundPolicyFor, type MixLevels, type MusicMood, type SfxId } from '@engine/index';
 import type { GoshtiStory } from '@/types/models';
 
 import type { AudioService, PlaybackListener, PlaybackStatus, SoundCue } from './audioService';
@@ -20,6 +20,8 @@ import type { SoundCatalog } from './soundAssets';
 import type { SoundHandle, SoundPlayerFactory } from './soundPlayer';
 
 const BED_FADE_MS = 1200;
+/** A scene's ambience fades away slowly once it has set the scene. */
+const BED_FADE_OUT_MS = 4000;
 const MUSIC_FADE_IN_MS = 800;
 const MUSIC_FADE_OUT_MS = 1500;
 const FADE_STEP_MS = 60;
@@ -36,6 +38,10 @@ interface Layer {
   level: number;
   fadeTimer: ReturnType<typeof setInterval> | null;
   stopping: boolean;
+  /** Ambience only: how much longer it plays before fading out (paused with the story). */
+  holdRemainingMs?: number;
+  holdTimer?: ReturnType<typeof setTimeout> | null;
+  holdStartedAt?: number;
 }
 
 /** The non-narration layers of a story: ambience bed, one-shot SFX, occasional music, signature. */
@@ -43,6 +49,7 @@ export class StorySoundscape {
   private levels: MixLevels = soundPolicyFor(6).levels;
   private readonly layers = new Set<Layer>();
   private paused = false;
+  private lastSfxAt = -Infinity;
   private signature: { handle: SoundHandle; done: (ok: boolean) => void } | null = null;
 
   constructor(private readonly deps: { catalog: SoundCatalog; players: SoundPlayerFactory }) {}
@@ -102,13 +109,19 @@ export class StorySoundscape {
   pause() {
     if (this.paused) return;
     this.paused = true;
-    for (const l of this.layers) l.handle.pause();
+    for (const l of this.layers) {
+      l.handle.pause();
+      this.pauseHold(l);
+    }
   }
 
   resume() {
     if (!this.paused) return;
     this.paused = false;
-    for (const l of this.layers) l.handle.play();
+    for (const l of this.layers) {
+      l.handle.play();
+      this.startHold(l);
+    }
   }
 
   /** Fades everything out (end of story) or cuts it immediately. */
@@ -116,6 +129,7 @@ export class StorySoundscape {
     this.cancelSignature();
     this.stopLayers(() => true, immediately ? 0 : BED_FADE_MS);
     this.paused = false;
+    this.lastSfxAt = -Infinity;
   }
 
   /** For tests and debugging. */
@@ -130,6 +144,10 @@ export class StorySoundscape {
     if (!source) return;
     const live = [...this.layers].filter((l) => l.kind === 'sfx' && !l.stopping);
     if (live.length >= MAX_ONE_SHOTS) return;
+    // Sounds stay occasional: skip an effect that comes too soon after the last one.
+    const now = Date.now();
+    if (now - this.lastSfxAt < MIN_SFX_GAP_MS) return;
+    this.lastSfxAt = now;
     const level = isAmbienceId(id) ? this.levels.ambience : this.levels.sfx;
     const layer = this.add('sfx', id, source, level, false);
     const safety = setTimeout(() => this.remove(layer), ONE_SHOT_MAX_MS);
@@ -147,6 +165,26 @@ export class StorySoundscape {
     this.stopLayers((l) => l.kind === 'ambience', BED_FADE_MS);
     const layer = this.add('ambience', id, source, 0, true);
     this.fade(layer, this.levels.ambience, BED_FADE_MS);
+    // Set the scene, then fade away — never a bed looping under the whole story.
+    layer.holdRemainingMs = AMBIENCE_HOLD_MS;
+    this.startHold(layer);
+  }
+
+  private startHold(layer: Layer) {
+    if (layer.holdRemainingMs === undefined || layer.holdTimer || layer.stopping || this.paused) return;
+    layer.holdStartedAt = Date.now();
+    layer.holdTimer = setTimeout(() => {
+      layer.holdTimer = null;
+      layer.holdRemainingMs = undefined;
+      this.stopLayers((l) => l === layer, BED_FADE_OUT_MS);
+    }, layer.holdRemainingMs);
+  }
+
+  private pauseHold(layer: Layer) {
+    if (!layer.holdTimer) return;
+    clearTimeout(layer.holdTimer);
+    layer.holdTimer = null;
+    layer.holdRemainingMs = Math.max(0, (layer.holdRemainingMs ?? 0) - (Date.now() - (layer.holdStartedAt ?? Date.now())));
   }
 
   private startMusic(mood: MusicMood) {
@@ -193,6 +231,8 @@ export class StorySoundscape {
   }
 
   private remove(layer: Layer) {
+    if (layer.holdTimer) clearTimeout(layer.holdTimer);
+    layer.holdTimer = null;
     if (layer.fadeTimer) clearInterval(layer.fadeTimer);
     layer.fadeTimer = null;
     layer.handle.release();

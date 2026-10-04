@@ -59,33 +59,33 @@ export interface SoundPolicy {
 export const SOUND_POLICIES: Record<DevelopmentalProfileId, SoundPolicy> = {
   EARLY_LISTENER: {
     profileId: 'EARLY_LISTENER',
-    sfxPerMinute: 4,
+    sfxPerMinute: 3,
     maxMusicCues: 2,
-    levels: { narration: 1, sfx: 0.55, ambience: 0.12, music: 0.08 },
+    levels: { narration: 1, sfx: 0.5, ambience: 0.09, music: 0.06 },
     direction:
       'Ages 2–3: more animal and playful sounds, simple rhythm and repetition. Put a sound right AFTER the word that names it (e.g. after "मांजर म्हणाली" → CAT_MEOW), never on top of Aaji’s words.',
   },
   IMAGINATIVE_LISTENER: {
     profileId: 'IMAGINATIVE_LISTENER',
-    sfxPerMinute: 3,
+    sfxPerMinute: 2,
     maxMusicCues: 2,
-    levels: { narration: 1, sfx: 0.5, ambience: 0.13, music: 0.08 },
+    levels: { narration: 1, sfx: 0.45, ambience: 0.09, music: 0.06 },
     direction:
       'Ages 4–5: playful sounds, a gentle ambience bed, clear event sounds (knock, splash, bell) and gentle magic (MAGIC_SPARKLE) at key moments.',
   },
   STORY_EXPLORER: {
     profileId: 'STORY_EXPLORER',
-    sfxPerMinute: 3,
-    maxMusicCues: 2,
-    levels: { narration: 1, sfx: 0.45, ambience: 0.12, music: 0.07 },
+    sfxPerMinute: 2,
+    maxMusicCues: 1,
+    levels: { narration: 1, sfx: 0.4, ambience: 0.08, music: 0.05 },
     direction:
       'Ages 6–7: narrative sounds that build the scene (footsteps before a reveal, rain as the mood changes). Fewer, better-placed effects.',
   },
   INDEPENDENT_IMAGINER: {
     profileId: 'INDEPENDENT_IMAGINER',
-    sfxPerMinute: 2,
+    sfxPerMinute: 1,
     maxMusicCues: 1,
-    levels: { narration: 1, sfx: 0.4, ambience: 0.11, music: 0.06 },
+    levels: { narration: 1, sfx: 0.35, ambience: 0.07, music: 0.04 },
     direction:
       'Ages 8–9: subtle sound design. Let words and silence carry the story; an ambience bed and one or two meaningful effects are enough.',
   },
@@ -98,6 +98,14 @@ export function soundPolicyFor(age: number): SoundPolicy {
     return SOUND_POLICIES.STORY_EXPLORER;
   }
 }
+
+/**
+ * Ambience SETS THE SCENE, then gets out of the way: it plays for this long at the start of a
+ * scene and fades out, instead of looping under the whole story (a looped bed sounds artificial).
+ */
+export const AMBIENCE_HOLD_MS = 20_000;
+/** Minimum gap between two one-shot effects, so sounds stay occasional. */
+export const MIN_SFX_GAP_MS = 15_000;
 
 /** Default level for the GOSHTI signature and UI sounds (soft, never startling). */
 export const SIGNATURE_LEVEL = 0.6;

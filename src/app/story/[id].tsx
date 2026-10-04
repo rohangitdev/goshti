@@ -86,7 +86,7 @@ export default function StoryPlayerScreen() {
 
         {status.waiting ? (
           <AppText variant="caption" muted center>
-            आजी आवाज तयार करतेय...
+            आजी लवकरच गोष्ट सुरू करतेय...
           </AppText>
         ) : null}
 

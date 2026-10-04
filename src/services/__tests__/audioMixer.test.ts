@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildAudioScript, buildTtsChunks, soundPolicyFor, type AudioScript } from '@engine/index';
+import {
+  AMBIENCE_HOLD_MS,
+  buildAudioScript,
+  buildTtsChunks,
+  MIN_SFX_GAP_MS,
+  soundPolicyFor,
+  type AudioScript,
+} from '@engine/index';
 import type { GoshtiStory } from '@/types/models';
 
 import { LayeredStoryAudioService, StorySoundscape } from '../audioMixerService';
@@ -146,15 +153,31 @@ describe('StorySoundscape (mixer layers)', () => {
     expect(v('music:GENTLE')).toBeLessThan(v('sfx:WAVES'));
   });
 
-  it('skips sounds without an asset and never stacks more than two effects', () => {
+  it('skips sounds without an asset and keeps effects occasional (min gap)', () => {
     const players = new FakePlayers();
     const scape = new StorySoundscape({ catalog, players });
     scape.cue({ type: 'SFX', soundId: 'LION' });
     expect(players.created).toHaveLength(0);
     for (let i = 0; i < 5; i++) scape.cue({ type: 'SFX', soundId: 'CLAP' });
-    expect(players.live('sfx:CLAP')).toHaveLength(2);
-    players.live('sfx:CLAP')[0].end();
     expect(players.live('sfx:CLAP')).toHaveLength(1);
+    players.live('sfx:CLAP')[0].end();
+    vi.advanceTimersByTime(MIN_SFX_GAP_MS);
+    scape.cue({ type: 'SFX', soundId: 'BELL' });
+    expect(players.live('sfx:BELL')).toHaveLength(1);
+  });
+
+  it('ambience sets the scene, then fades away (paused time does not count)', () => {
+    const players = new FakePlayers();
+    const scape = new StorySoundscape({ catalog, players });
+    scape.cue({ type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'START' });
+    const [bed] = players.live('sfx:FOREST_AMBIENCE');
+    vi.advanceTimersByTime(AMBIENCE_HOLD_MS / 2);
+    scape.pause();
+    vi.advanceTimersByTime(AMBIENCE_HOLD_MS * 2);
+    expect(bed.released).toBe(false);
+    scape.resume();
+    vi.advanceTimersByTime(AMBIENCE_HOLD_MS / 2 + 5000);
+    expect(bed.released).toBe(true);
   });
 
   it('pauses and resumes beds, and stop() fades everything out', () => {

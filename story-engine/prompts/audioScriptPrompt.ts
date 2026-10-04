@@ -21,7 +21,7 @@ Return three short lists:
 3. cues — pauses and sound, placed after a paragraph number (0 = before the story starts):
    PAUSE      { afterParagraph, type, durationMs }        300–4000 ms. Silence is a storytelling tool: before reveals, after a question to the listener (1500–2500 ms), before the ending.
    SFX        { afterParagraph, type, soundId }           a short one-shot sound effect.
-   AMBIENCE   { afterParagraph, type, soundId, action }   a quiet background bed: START it, and STOP it later. One bed at a time.
+   AMBIENCE   { afterParagraph, type, soundId, action }   a quiet bed that SETS THE SCENE at the start of a scene; it fades away by itself after ~20 seconds. One at a time; at most one per scene.
    MUSIC_CUE  { afterParagraph, type, mood, action }      a short, quiet musical moment (scene change, ending). At most 1–2 per story; never continuously under narration.
 
 Aaji's narration is always the most important sound. Ambience and music are mixed very low; never plan sound that would compete with her words.
@@ -33,7 +33,7 @@ ${NARRATOR_EMOTIONS.join(', ')}
 Voice styles:
 ${VOICE_STYLES.join(', ')}
 
-Do not insert sound effects every few seconds. Sound should support imagination, not overwhelm the listener.
+Sound effects are occasional: only at the few moments that matter most, never two close together (the player skips an effect within ~15 seconds of the previous one). Sound should support imagination, not overwhelm the listener.
 
 You may ONLY select SFX soundId values from this approved list:
 ${ONE_SHOT_SFX_IDS.join(', ')}

@@ -54,7 +54,7 @@ describe('audio script sound rules', () => {
     const young = buildAudioScript(story, sfxEverywhere('BELL', 20), { estimatedMinutes: 1, age: 3 }).script;
     const old = buildAudioScript(story, sfxEverywhere('BELL', 20), { estimatedMinutes: 1, age: 9 }).script;
     const count = (s: typeof young) => s.segments.filter((x) => x.type === 'SFX').length;
-    expect(count(young)).toBe(4);
+    expect(count(young)).toBe(3);
     expect(count(old)).toBe(2);
   });
 
