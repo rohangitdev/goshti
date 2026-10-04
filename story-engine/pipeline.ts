@@ -10,6 +10,7 @@
  * runs everything in one go (tests, mock, local use).
  */
 import { buildAudioScript, estimateDurationSeconds } from './audio';
+import { screenIdea, screenOutcome } from './safetyScreen';
 import { countWords, judgeEvaluation, localStoryChecks } from './evaluation';
 import type { StoryLogger } from './logging';
 import { resolveProfile, type ChildAge } from './profiles';
@@ -155,6 +156,8 @@ export async function advancePipeline(
         return await fn();
       } finally {
         trace.timings.push({ stage, attempt, ms: now() - t0, model: provider.modelUsedFor?.(stage) ?? provider.models[stage] });
+        const usage = provider.takeUsage?.() ?? [];
+        if (usage.length) trace.usage = [...(trace.usage ?? []), ...usage.map((u) => ({ ...u, ...(attempt && { attempt }) }))];
       }
     };
 
@@ -163,6 +166,14 @@ export async function advancePipeline(
       switch (state.phase) {
         case 'CLASSIFY': {
           const idea = request.userIdea ?? '';
+          // Unmistakably unsafe ideas are refused before any AI call (defence in depth).
+          const screen = screenIdea(idea);
+          if (screen.blocked) {
+            const outcome = screenOutcome(screen.category);
+            trace.intent = { intent: outcome === 'UNSAFE' ? 'UNSAFE' : 'OTHER', reason: `local safety screen: ${screen.category}` };
+            trace.safety = { allowed: false, reason: trace.intent.reason };
+            return finish({ status: outcome, message: MESSAGES[outcome], trace });
+          }
           trace.intent = await timed(() => provider.classifyIntent({ idea, request }));
           if (trace.intent.intent === 'UNSAFE') {
             trace.safety = { allowed: false, reason: trace.intent.reason };

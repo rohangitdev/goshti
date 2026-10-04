@@ -56,6 +56,7 @@ const tick = (ms = 10) => new Promise((r) => setTimeout(r, ms));
 const header = new Uint8Array(44);
 const view = new DataView(header.buffer);
 'RIFF'.split('').forEach((c, i) => view.setUint8(i, c.charCodeAt(0)));
+'WAVE'.split('').forEach((c, i) => view.setUint8(8 + i, c.charCodeAt(0)));
 view.setUint32(28, 48000, true);
 const wav1s = btoa(String.fromCharCode(...header) + '\0'.repeat(48000));
 

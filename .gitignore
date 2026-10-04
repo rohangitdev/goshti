@@ -51,3 +51,4 @@ yarn-error.*
 # supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+qa-results/

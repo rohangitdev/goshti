@@ -12,9 +12,18 @@ export type LogLevel = 'off' | 'summary' | 'full';
 
 export function anonymiseTrace(trace: StoryTrace): StoryTrace {
   const name = trace.normalizedRequest?.childName;
-  const json = JSON.stringify(trace);
-  const scrubbed = name ? json.split(name).join('[child]') : json;
-  return JSON.parse(scrubbed) as StoryTrace;
+  const idea = trace.normalizedRequest?.userIdea;
+  const rawIdea = (trace.request as { userIdea?: unknown } | null)?.userIdea;
+  let json = JSON.stringify(trace);
+  // Longest first, so a name inside the idea is still caught.
+  for (const [text, label] of [
+    [typeof rawIdea === 'string' ? rawIdea : undefined, '[idea]'],
+    [idea, '[idea]'],
+    [name, '[child]'],
+  ] as const) {
+    if (text && text.length >= 2) json = json.split(JSON.stringify(text).slice(1, -1)).join(label);
+  }
+  return JSON.parse(json) as StoryTrace;
 }
 
 export function summariseTrace(trace: StoryTrace): string {

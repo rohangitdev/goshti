@@ -13,6 +13,7 @@ import type {
   VoiceStyle,
   WrittenStory,
 } from './schemas';
+import type { TokenUsage } from './provider';
 import type { MusicMood, SfxId } from './sfx';
 
 
@@ -145,6 +146,8 @@ export interface StoryTrace {
   totalMs: number;
   attemptCount: number;
   errors: string[];
+  /** Token usage per model call, when the provider reports it (diagnostics). */
+  usage?: TokenUsage[];
   outcome?: PipelineResult['status'];
 }
 

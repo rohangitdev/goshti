@@ -36,12 +36,13 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit && tsc --noEmit -p backend",
-    "lint": "expo lint && eslint backend story-engine",
+    "lint": "expo lint && eslint backend story-engine scripts/qa",
     "test": "vitest run",
     "backend": "tsx backend/dev-server.ts",
     "build:function": "node scripts/build-function.mjs",
     "deploy:function": "npm run build:function && npx supabase functions deploy generate-story --project-ref okcoskjdspwqnvcilbsf",
-    "audio:placeholders": "node scripts/generate-placeholder-audio.mjs"
+    "audio:placeholders": "node scripts/generate-placeholder-audio.mjs",
+    "qa": "tsx scripts/qa/run-qa.ts"
   },
   "private": true
 }

@@ -238,6 +238,58 @@ describe('LayeredStoryAudioService (story playback)', () => {
   });
 });
 
+describe('playback safety', () => {
+  it('repeated tapping Play during the signature starts only one signature and one narration', async () => {
+    const players = new FakePlayers();
+    const narration = new FakeNarration();
+    const service = new LayeredStoryAudioService(narration, new StorySoundscape({ catalog, players }));
+    await service.load(story(5));
+    const first = service.play();
+    await service.play();
+    await service.play();
+    expect(players.created.filter((h) => (h.source as { uri: string }).uri === 'signature')).toHaveLength(1);
+    players.live('signature')[0].end();
+    await first;
+    expect(narration.played).toBe(1);
+  });
+
+  it('with the real audio-mode hook: still one signature for repeated taps, and the hook runs first', async () => {
+    const players = new FakePlayers();
+    const narration = new FakeNarration();
+    const order: string[] = [];
+    const service = new LayeredStoryAudioService(narration, new StorySoundscape({ catalog, players }), {
+      signature: true,
+      beforePlay: async () => void order.push('audio-mode'),
+    });
+    await service.load(story(4));
+    const first = service.play();
+    void service.play();
+    void service.play();
+    await vi.advanceTimersByTimeAsync(1);
+    const sigs = players.created.filter((h) => (h.source as { uri: string }).uri === 'signature');
+    expect(sigs).toHaveLength(1);
+    expect(order).toEqual(['audio-mode']);
+    sigs[0].end();
+    await first;
+    expect(narration.played).toBe(1);
+  });
+
+  it('opening a second story stops the first one’s signature and sounds (no overlap)', async () => {
+    const players = new FakePlayers();
+    const narration = new FakeNarration();
+    const service = new LayeredStoryAudioService(narration, new StorySoundscape({ catalog, players }));
+    await service.load(story(5));
+    const playingA = service.play();
+    await service.load({ ...story(5), id: 's2' });
+    await playingA;
+    expect(narration.played).toBe(0); // story A never started after B was opened
+    expect(players.live('signature')).toHaveLength(0);
+    narration.onCue?.({ type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'START' });
+    await service.load({ ...story(5), id: 's3' });
+    expect(players.live('sfx:FOREST_AMBIENCE')).toHaveLength(0);
+  });
+});
+
 describe('cue timing for Aaji’s voice parts', () => {
   it('rebuilds the backend chunking and only trusts it when the part count matches', async () => {
     const { cuePlan } = await import('../clipAudioService');

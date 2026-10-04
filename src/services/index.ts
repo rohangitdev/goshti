@@ -3,6 +3,7 @@
  * Replace a Mock or Local class here (cloud TTS, expo-audio, Supabase data, RevenueCat)
  * without touching any screen.
  */
+import { setAudioModeAsync } from 'expo-audio';
 import { Platform } from 'react-native';
 
 import { config } from '@/config';
@@ -55,6 +56,9 @@ const soundPlayers = new ExpoSoundPlayerFactory();
 export const audioService: AudioService = new LayeredStoryAudioService(
   new SmartAudioService(voiceService ? new ClipAudioService(voiceService) : null, new SpeechAudioService(), voiceService),
   new StorySoundscape({ catalog: bundledSounds, players: soundPlayers }),
+  // Stories (signature included) play even with the iPhone silent switch on; UI sounds before
+  // the first story still respect it.
+  { signature: true, beforePlay: () => setAudioModeAsync({ playsInSilentMode: true }) },
 );
 
 // Restrained interface sounds — screens ask by meaning, never by file.

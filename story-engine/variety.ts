@@ -151,6 +151,34 @@ const EARLY_PROTAGONISTS = [
   'a vehicle with a personality (bus, train, rickshaw, boat)',
 ] as const;
 
+/** "Animals" stories must star an animal (not a robot, toy or vehicle). */
+const ANIMAL_PROTAGONISTS = [
+  'a curious small animal',
+  'a farm animal',
+  'a bird',
+  'an insect',
+  'a sea creature',
+  'a baby dinosaur',
+  'a big gentle animal (elephant, bear, buffalo)',
+  'a pet animal and the child it lives with',
+] as const;
+const EARLY_ANIMAL_PROTAGONISTS = ['a curious small animal', 'a farm animal', 'a bird', 'a pet animal and the child it lives with', 'a big gentle animal (elephant, bear, buffalo)'] as const;
+
+/** Ages 2–3: things a toddler can see and hold — no notes, maps or recipes. */
+const EARLY_OBJECTS = [
+  'a red ball',
+  'a lost shoe',
+  'a shiny button',
+  'a big umbrella',
+  'a paper boat',
+  'a balloon',
+  'a little bell',
+  'a basket of fruit',
+  'a kite stuck in a tree',
+  'a warm blanket',
+] as const;
+const EARLY_RELATIONSHIPS = ['pet and owner', 'grandparent and child', 'siblings', 'brand-new friends', 'an unlikely pair (very big and very small)'] as const;
+
 /** Ages 2–3: only familiar, concrete places. */
 const EARLY_SETTINGS = ['home', 'garden', 'farm', 'village', 'rainy day', 'beach', 'market', 'park', 'grandparents’ house'] as const;
 const EARLY_SETTINGS_BY_CATEGORY: Partial<Record<StoryCategory, readonly string[]>> = {
@@ -182,12 +210,14 @@ export function pickIngredients(
   const settings = early
     ? (EARLY_SETTINGS_BY_CATEGORY[request.category] ?? EARLY_SETTINGS)
     : (CATEGORY_SETTINGS[request.category] ?? SETTINGS).filter((x) => !young || !NOT_FOR_YOUNG.has(x));
+  const animals = request.category === 'animals';
+  const protagonists = animals ? (early ? EARLY_ANIMAL_PROTAGONISTS : ANIMAL_PROTAGONISTS) : early ? EARLY_PROTAGONISTS : PROTAGONISTS;
   return {
-    protagonist: pick(early ? EARLY_PROTAGONISTS : PROTAGONISTS, rng),
+    protagonist: pick(protagonists, rng),
     setting: pick(settings, rng),
     plotPattern: pick(early ? EARLY_PLOTS : (CATEGORY_PLOTS[request.category] ?? PLOT_PATTERNS), rng),
-    relationship: pick(RELATIONSHIPS, rng),
-    objectOrDiscovery: pick(OBJECTS_AND_DISCOVERIES, rng),
+    relationship: pick(early ? EARLY_RELATIONSHIPS : RELATIONSHIPS, rng),
+    objectOrDiscovery: pick(early ? EARLY_OBJECTS : OBJECTS_AND_DISCOVERIES, rng),
     humourStyle: pick(HUMOUR_BY_PROFILE[profile.id], rng),
     positiveValue: pick(POSITIVE_VALUES, rng),
   };

@@ -60,6 +60,23 @@ export function wavSeconds(base64: string): number {
   return Math.max(0, (bytes - 44) / byteRate);
 }
 
+/** Minimum believable length of a rendered part; anything shorter is treated as broken audio. */
+const MIN_PART_SECONDS = 0.3;
+
+/** Empty or corrupted audio must never be saved as a "ready" part (it would silently skip the story). */
+export function checkPlayableWav(base64: string): number {
+  let head = '';
+  try {
+    head = atob(base64.slice(0, 16));
+  } catch {
+    throw new Error('voice part is not valid audio');
+  }
+  if (!head.startsWith('RIFF') || head.slice(8, 12) !== 'WAVE') throw new Error('voice part is not a WAV file');
+  const seconds = wavSeconds(base64);
+  if (!(seconds >= MIN_PART_SECONDS)) throw new Error('voice part is empty');
+  return seconds;
+}
+
 type Listener = (state: VoiceState) => void;
 
 export class VoiceService {
@@ -121,8 +138,9 @@ export class VoiceService {
         for (let attempt = 0; attempt <= (this.deps.retries ?? 1); attempt++) {
           try {
             const { base64, pauseAfterMs } = await this.deps.client.renderChunk(state.token, i);
+            const seconds = checkPlayableWav(base64);
             const uri = await this.deps.files.save(storyId, i, base64);
-            state.parts[i] = { uri, seconds: wavSeconds(base64), pauseAfterMs };
+            state.parts[i] = { uri, seconds, pauseAfterMs };
             lastError = undefined;
             break;
           } catch (e) {

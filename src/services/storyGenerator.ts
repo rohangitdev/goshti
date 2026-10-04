@@ -5,6 +5,7 @@
  */
 import {
   generateStory,
+  MESSAGES,
   MockStoryAIProvider,
   type ApprovedStory,
   type StoryRequest,
@@ -49,6 +50,21 @@ export class LocalMockGenerator implements StoryGenerator {
   }
 }
 
+/** Minimal shape check so a malformed server answer can never be saved as a story. */
+function isApprovedStoryShape(story: unknown): story is ApprovedStory {
+  const s = story as Partial<ApprovedStory> | null;
+  return (
+    !!s &&
+    typeof s.title === 'string' &&
+    s.title.length > 0 &&
+    typeof s.storyText === 'string' &&
+    s.storyText.length > 0 &&
+    !!s.audioScript &&
+    Array.isArray(s.audioScript.segments) &&
+    s.audioScript.segments.length > 0
+  );
+}
+
 export class BackendStoryGenerator implements StoryGenerator {
   readonly kind = 'backend' as const;
 
@@ -84,15 +100,16 @@ export class BackendStoryGenerator implements StoryGenerator {
           payload = { continuation: body.continuation };
           continue;
         }
-        if (body.status === 'APPROVED' && body.story && typeof body.story === 'object') {
+        if (body.status === 'APPROVED' && isApprovedStoryShape(body.story)) {
           const voice =
             body.ttsAvailable === true && typeof body.audioToken === 'string' && typeof body.audioChunks === 'number'
               ? { token: body.audioToken, totalChunks: body.audioChunks }
               : undefined;
           return { status: 'APPROVED', story: body.story as ApprovedStory, voice };
         }
-        if ((body.status === 'NOT_A_STORY' || body.status === 'UNSAFE') && typeof body.message === 'string') {
-          return { status: body.status, message: body.message };
+        if (body.status === 'NOT_A_STORY' || body.status === 'UNSAFE') {
+          // Always the app's own fixed wording — never text from the server or a model.
+          return { status: body.status, message: MESSAGES[body.status] };
         }
         const reason = typeof body.reason === 'string' ? body.reason : `backend status ${body.status}`;
         return { status: 'FAILED', reason };

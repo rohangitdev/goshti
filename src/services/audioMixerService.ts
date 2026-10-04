@@ -257,7 +257,11 @@ export class LayeredStoryAudioService implements AudioService {
   constructor(
     private readonly narration: AudioService,
     private readonly soundscape: StorySoundscape,
-    private readonly options: { signature: boolean } = { signature: true },
+    private readonly options: {
+      signature: boolean;
+      /** Runs before the first sound of every play (e.g. let stories play with the silent switch on). */
+      beforePlay?: () => Promise<void>;
+    } = { signature: true },
   ) {
     this.status = narration.getStatus();
     narration.onCue = (cue) => {
@@ -282,17 +286,28 @@ export class LayeredStoryAudioService implements AudioService {
     if (!s.storyId) return;
     const fromStart = s.didFinish || (!this.startedOnce && s.positionSeconds === 0);
     if (fromStart && this.options.signature) {
+      // Mark the intro synchronously so repeated taps can't start a second one.
       const token = ++this.token;
       this.soundscape.stop(true);
       this.intro = true;
       this.emit();
+      if (this.options.beforePlay) {
+        await this.prepareAudio();
+        if (token !== this.token) return;
+      }
       const ok = await this.soundscape.playSignature();
       this.intro = false;
       if (token !== this.token) return; // paused / unloaded meanwhile
       if (!ok) this.emit();
     }
     this.startedOnce = true;
+    if (this.options.beforePlay) await this.prepareAudio();
     await this.narration.play();
+  }
+
+  private async prepareAudio() {
+    if (!this.options.beforePlay) return;
+    await this.options.beforePlay().catch(() => {});
   }
 
   async pause() {

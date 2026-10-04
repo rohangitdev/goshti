@@ -14,6 +14,7 @@ export * from './profiles';
 export * from './provider';
 export * from './request';
 export * from './schemas';
+export * from './safetyScreen';
 export * from './sfx';
 export * from './soundDesign';
 export * from './tts';

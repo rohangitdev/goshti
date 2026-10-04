@@ -63,6 +63,20 @@ describe('GeminiProvider', () => {
     expect(contents).toHaveLength(3); // user, model (bad output), user (repair request)
   });
 
+  it('reports token usage per call (for cost diagnostics), including repair calls', async () => {
+    const usage = { usageMetadata: { promptTokenCount: 1200, candidatesTokenCount: 300, thoughtsTokenCount: 50 } };
+    const { impl } = fakeFetch([
+      { body: geminiResponse('{"title": "अ"}', usage) },
+      { body: geminiResponse('{"title":"अ","storyText":"ब"}', usage) },
+    ]);
+    const p = new GeminiProvider({ apiKey: 'k', fetchImpl: impl });
+    await p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan });
+    const taken = p.takeUsage();
+    expect(taken).toHaveLength(2);
+    expect(taken[0]).toMatchObject({ stage: 'generateStory', inputTokens: 1200, outputTokens: 300, thinkingTokens: 50 });
+    expect(p.takeUsage()).toEqual([]);
+  });
+
   it('fails with MALFORMED_OUTPUT after two bad responses', async () => {
     const { impl } = fakeFetch([{ body: geminiResponse('not json') }, { body: geminiResponse('{"x":1}') }]);
     const p = new GeminiProvider({ apiKey: 'k', fetchImpl: impl });

@@ -26,6 +26,7 @@ import {
   type PlanInput,
   type RewriteInput,
   type StoryAIProvider,
+  type TokenUsage,
   type WriteInput,
 } from '../provider';
 import {
@@ -139,6 +140,7 @@ interface GeminiPart {
 interface GeminiResponse {
   candidates?: { content?: { parts?: GeminiPart[] }; finishReason?: string }[];
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
   error?: { code?: number; message?: string; status?: string };
 }
 
@@ -173,6 +175,7 @@ export class GeminiProvider implements StoryAIProvider {
   private thinkingSupported = true;
   /** Model that actually answered each stage last (differs from `models` after a fallback). */
   private readonly lastUsed: Record<string, string> = {};
+  private usageLog: TokenUsage[] = [];
 
   constructor(private readonly config: GeminiConfig) {
     if (!config.apiKey) throw new ProviderError('NOT_CONFIGURED', 'GEMINI_API_KEY is not set');
@@ -189,6 +192,12 @@ export class GeminiProvider implements StoryAIProvider {
       createAudioScript: fast,
     };
     this.fetchImpl = config.fetchImpl ?? fetch;
+  }
+
+  takeUsage(): TokenUsage[] {
+    const out = this.usageLog;
+    this.usageLog = [];
+    return out;
   }
 
   modelUsedFor(stage: string): string | undefined {
@@ -420,6 +429,15 @@ export class GeminiProvider implements StoryAIProvider {
         );
       }
       this.lastUsed[spec.stage] = model;
+      if (json.usageMetadata) {
+        this.usageLog.push({
+          stage: spec.stage,
+          model,
+          inputTokens: json.usageMetadata.promptTokenCount ?? 0,
+          outputTokens: json.usageMetadata.candidatesTokenCount ?? 0,
+          thinkingTokens: json.usageMetadata.thoughtsTokenCount ?? 0,
+        });
+      }
 
       if (json.promptFeedback?.blockReason) {
         throw new ProviderError('BLOCKED', json.promptFeedback.blockReason, spec.stage);

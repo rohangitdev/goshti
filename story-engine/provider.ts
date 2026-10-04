@@ -38,12 +38,25 @@ export interface AudioScriptInput {
  * Provider-neutral AI operations. Business logic depends only on this interface,
  * never on a vendor SDK. Gemini today; anything else later.
  */
+/** Token counts as reported by the provider, per model call (no prices — those change). */
+export interface TokenUsage {
+  stage: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  thinkingTokens: number;
+  /** Writer/critic attempt number, when relevant. */
+  attempt?: number;
+}
+
 export interface StoryAIProvider {
   readonly name: string;
   /** Model used per operation, for the developer trace. */
   readonly models: Record<string, string>;
   /** Model that actually served a stage (after any fallback). Optional. */
   modelUsedFor?(stage: string): string | undefined;
+  /** Token usage reported by the model since the last call (diagnostics only). Optional. */
+  takeUsage?(): TokenUsage[];
   classifyIntent(input: { idea: string; request: StoryRequest }): Promise<IntentResult>;
   createPlan(input: PlanInput): Promise<StoryPlan>;
   generateStory(input: WriteInput): Promise<WrittenStory>;
