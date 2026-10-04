@@ -5,9 +5,10 @@
  */
 import { MockStoryEngine } from '@engine/index';
 
-import { MockAudioService, type AudioService } from './audioService';
+import type { AudioService } from './audioService';
 import { ChildProfileService } from './childProfileService';
 import { AsyncStorageService, type StorageService } from './storageService';
+import { SpeechAudioService } from './speechAudioService';
 import { DefaultStoryService, type StoryService } from './storyService';
 import { LocalSubscriptionService, type SubscriptionService } from './subscriptionService';
 import { MockTtsService, type TtsService } from './ttsService';
@@ -15,7 +16,8 @@ import { MockTtsService, type TtsService } from './ttsService';
 export const storageService: StorageService = new AsyncStorageService();
 export const subscriptionService: SubscriptionService = new LocalSubscriptionService(storageService);
 export const ttsService: TtsService = new MockTtsService();
-export const audioService: AudioService = new MockAudioService();
+// Phone's built-in voice until server-side Aaji TTS exists. MockAudioService = silent timer.
+export const audioService: AudioService = new SpeechAudioService();
 export const childProfileService = new ChildProfileService(storageService);
 export const storyService: StoryService = new DefaultStoryService({
   engine: new MockStoryEngine(),
