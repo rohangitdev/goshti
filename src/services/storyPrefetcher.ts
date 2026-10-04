@@ -9,15 +9,21 @@
  */
 import type { ApprovedStory, ChildAge, StoryCategory } from '@engine/index';
 
+import { createId } from '@/utils/id';
+
 import type { StorageService } from './storageService';
-import type { StoryGenerator } from './storyGenerator';
+import type { StoryGenerator, VoiceTicket } from './storyGenerator';
 import type { SubscriptionService } from './subscriptionService';
+import type { VoiceService } from './voiceService';
 
 export const MAX_READY = 3;
 /** Prepared stories older than this are discarded (keeps the pool fresh). */
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface PreparedStory {
+  /** Becomes the story id when used (its voice is rendered under this id). */
+  id: string;
+  voice?: VoiceTicket;
   age: ChildAge;
   category: StoryCategory;
   story: ApprovedStory;
@@ -34,6 +40,8 @@ export class RandomStoryPrefetcher {
       generator: StoryGenerator;
       storage: StorageService;
       subscription: SubscriptionService;
+      /** Also render Aaji's voice in advance, so prepared stories play instantly in her voice. */
+      voice?: VoiceService;
       now?: () => number;
     },
   ) {}
@@ -52,13 +60,13 @@ export class RandomStoryPrefetcher {
   }
 
   /** Removes and returns a ready story for this category and age, if any. */
-  async take(category: StoryCategory, age: ChildAge): Promise<ApprovedStory | null> {
+  async take(category: StoryCategory, age: ChildAge): Promise<PreparedStory | null> {
     const pool = await this.pool(age);
     const ready = pool[category];
     if (!ready) return null;
     delete pool[category];
     await this.deps.storage.savePreparedStories(pool);
-    return ready.story;
+    return ready;
   }
 
   /** Fire-and-forget: prepare one story for this category if there's room. Never throws. */
@@ -85,8 +93,12 @@ export class RandomStoryPrefetcher {
       });
       if (result.status !== 'APPROVED') return;
 
+      const id = createId();
+      if (result.voice && this.deps.voice) await this.deps.voice.start(id, result.voice).catch(() => {});
       const latest = await this.pool(input.age);
       latest[input.category] = {
+        id,
+        voice: result.voice,
         age: input.age,
         category: input.category,
         story: result.story,

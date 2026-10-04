@@ -72,6 +72,12 @@ export default function StoryPlayerScreen() {
           </View>
         </View>
 
+        {status.waiting ? (
+          <AppText variant="caption" muted center>
+            आजी आवाज तयार करतेय...
+          </AppText>
+        ) : null}
+
         <View style={styles.controls}>
           <RoundButton
             icon={status.isPlaying ? '❚❚' : '▶'}

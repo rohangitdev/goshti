@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ChildProfile, GoshtiStory, Subscription } from '@/types/models';
 
 import type { PreparedPool } from './storyPrefetcher';
+import type { VoiceStates } from './voiceService';
 
 /**
  * Local persistence. Today: AsyncStorage on device.
@@ -28,6 +29,10 @@ export interface StorageService {
   /** Random stories prepared in advance (see storyPrefetcher). */
   getPreparedStories(): Promise<PreparedPool>;
   savePreparedStories(pool: PreparedPool): Promise<void>;
+
+  /** Aaji-voice rendering state per story id (see voiceService). */
+  getVoiceStates(): Promise<VoiceStates>;
+  saveVoiceStates(states: VoiceStates): Promise<void>;
 }
 
 const KEYS = {
@@ -37,6 +42,7 @@ const KEYS = {
   subscription: 'goshti.subscription.v1',
   usageMonth: 'goshti.usageMonth.v1',
   prepared: 'goshti.preparedStories.v1',
+  voice: 'goshti.voice.v1',
 } as const;
 
 async function readJson<T>(key: string): Promise<T | null> {
@@ -97,5 +103,12 @@ export class AsyncStorageService implements StorageService {
   }
   savePreparedStories(pool: PreparedPool) {
     return writeJson(KEYS.prepared, pool);
+  }
+
+  async getVoiceStates() {
+    return (await readJson<VoiceStates>(KEYS.voice)) ?? {};
+  }
+  saveVoiceStates(states: VoiceStates) {
+    return writeJson(KEYS.voice, states);
   }
 }

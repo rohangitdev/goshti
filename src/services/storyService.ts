@@ -4,8 +4,9 @@ import { createId } from '@/utils/id';
 import type { GoshtiStory, StoryRating } from '@/types/models';
 
 import type { StorageService } from './storageService';
-import type { ProgressListener, StoryGenerator } from './storyGenerator';
+import type { ProgressListener, StoryGenerator, VoiceTicket } from './storyGenerator';
 import type { RandomStoryPrefetcher } from './storyPrefetcher';
+import type { VoiceService } from './voiceService';
 import type { SubscriptionService } from './subscriptionService';
 import type { TtsService } from './ttsService';
 
@@ -52,6 +53,8 @@ interface Deps {
   subscription: SubscriptionService;
   /** Prepares RANDOM stories ahead of time. Optional. */
   prefetcher?: RandomStoryPrefetcher;
+  /** Renders Aaji's real voice for approved stories. Optional (absent = phone voice only). */
+  voice?: VoiceService;
   /** Artificial delay so the "Aaji is preparing" screen is visible with instant mock stories. */
   minimumLatencyMs?: number;
 }
@@ -83,7 +86,7 @@ export class DefaultStoryService implements StoryService {
     const minimum = instant ? (this.deps.minimumLatencyMs ?? 0) : 0;
     const [outcome] = await Promise.all([
       prepared
-        ? this.fromApproved(prepared, new Date())
+        ? this.fromApproved(prepared.story, new Date(), prepared.id, prepared.voice)
         : this.build(this.deps.generator, request, new Date(), onProgress),
       wait(minimum),
     ]);
@@ -164,15 +167,22 @@ export class DefaultStoryService implements StoryService {
     if (result.status === 'FAILED') throw new StoryGenerationError(result.reason);
     if (result.status !== 'APPROVED') return { status: 'DECLINED', message: result.message };
 
-    return this.fromApproved(result.story, createdAt);
+    return this.fromApproved(result.story, createdAt, undefined, result.voice);
   }
 
-  private async fromApproved(approved: ApprovedStory, createdAt: Date): Promise<CreateStoryOutcome> {
+  private async fromApproved(
+    approved: ApprovedStory,
+    createdAt: Date,
+    id = createId(),
+    voice?: VoiceTicket,
+  ): Promise<CreateStoryOutcome> {
     const audio = await this.deps.tts.synthesize(approved.audioScript);
+    // Start rendering Aaji's voice right away (a prepared story may already be rendered).
+    if (voice && this.deps.voice) await this.deps.voice.start(id, voice).catch(() => {});
     return {
       status: 'CREATED',
       story: {
-        id: createId(),
+        id,
         title: approved.title,
         age: approved.age,
         ageBand: approved.ageBand,

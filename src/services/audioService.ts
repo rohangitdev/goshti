@@ -6,6 +6,10 @@ export interface PlaybackStatus {
   positionSeconds: number;
   durationSeconds: number;
   didFinish: boolean;
+  /** Which voice is narrating: Aaji's recorded voice, or the phone's built-in voice. */
+  voice?: 'aaji' | 'phone';
+  /** Playing was requested but the next audio part isn't ready yet. */
+  waiting?: boolean;
 }
 
 export type PlaybackListener = (status: PlaybackStatus) => void;

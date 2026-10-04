@@ -17,6 +17,7 @@ function memoryStorage(): StorageService {
   let sub: Subscription | null = null;
   let month: string | null = null;
   let pool: PreparedPool = {};
+  let voice = {};
   return {
     getChildProfile: async () => profile,
     saveChildProfile: async (p) => void (profile = p),
@@ -31,6 +32,8 @@ function memoryStorage(): StorageService {
     saveUsageMonth: async (m) => void (month = m),
     getPreparedStories: async () => pool,
     savePreparedStories: async (p) => void (pool = JSON.parse(JSON.stringify(p))),
+    getVoiceStates: async () => voice,
+    saveVoiceStates: async (v) => void (voice = v),
   };
 }
 

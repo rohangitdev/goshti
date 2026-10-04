@@ -10,8 +10,14 @@ import {
   type StoryRequest,
 } from '@engine/index';
 
+/** Server-issued handle for rendering Aaji's voice for an approved story. */
+export interface VoiceTicket {
+  token: string;
+  totalChunks: number;
+}
+
 export type GenerationResult =
-  | { status: 'APPROVED'; story: ApprovedStory }
+  | { status: 'APPROVED'; story: ApprovedStory; voice?: VoiceTicket }
   | { status: 'NOT_A_STORY' | 'UNSAFE'; message: string }
   | { status: 'FAILED'; reason: string };
 
@@ -79,7 +85,11 @@ export class BackendStoryGenerator implements StoryGenerator {
           continue;
         }
         if (body.status === 'APPROVED' && body.story && typeof body.story === 'object') {
-          return { status: 'APPROVED', story: body.story as ApprovedStory };
+          const voice =
+            body.ttsAvailable === true && typeof body.audioToken === 'string' && typeof body.audioChunks === 'number'
+              ? { token: body.audioToken, totalChunks: body.audioChunks }
+              : undefined;
+          return { status: 'APPROVED', story: body.story as ApprovedStory, voice };
         }
         if ((body.status === 'NOT_A_STORY' || body.status === 'UNSAFE') && typeof body.message === 'string') {
           return { status: body.status, message: body.message };
