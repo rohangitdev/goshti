@@ -87,6 +87,12 @@ export default function GeneratingScreen() {
           <AppText variant="heading" center>
             अरेच्चा! आजीला गोष्ट आठवली नाही. पुन्हा प्रयत्न करूया?
           </AppText>
+          {/* Developers only: the technical reason (never shown in production builds). */}
+          {__DEV__ && state.reason ? (
+            <AppText variant="caption" muted center selectable>
+              {state.reason}
+            </AppText>
+          ) : null}
         </View>
       </Screen>
     );

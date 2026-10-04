@@ -9,7 +9,8 @@ export type GenerationState =
   | { status: 'limit' }
   /** The idea wasn't a story request / wasn't suitable — show Aaji's fixed message. */
   | { status: 'declined'; message: string }
-  | { status: 'error' };
+  /** reason is technical — shown only in development builds. */
+  | { status: 'error'; reason?: string };
 
 type Input = Pick<StoryRequest, 'category' | 'mode' | 'userIdea'>;
 
@@ -43,7 +44,7 @@ export function useStoryGeneration(input: Input | null) {
             ? { status: 'done', storyId: outcome.story.id }
             : { status: 'declined', message: outcome.message };
       } catch (e) {
-        state = { status: e instanceof StoryLimitReachedError ? 'limit' : 'error' };
+        state = e instanceof StoryLimitReachedError ? { status: 'limit' } : { status: 'error', reason: (e as Error).message };
       }
       if (active) setResult({ key, state });
     })();
