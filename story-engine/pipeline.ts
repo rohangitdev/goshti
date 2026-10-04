@@ -244,6 +244,8 @@ export async function advancePipeline(
           const built = buildAudioScript(approved.storyText, direction, {
             estimatedMinutes: plan.estimatedDurationMinutes,
             closingEmotion: request.category === 'bedtime' ? 'sleepy' : direction ? undefined : 'warm',
+            age: request.age,
+            intro: true,
           });
           trace.audioScriptWarnings.push(...built.warnings);
           const audioScript = built.script;

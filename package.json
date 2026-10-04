@@ -40,7 +40,8 @@
     "test": "vitest run",
     "backend": "tsx backend/dev-server.ts",
     "build:function": "node scripts/build-function.mjs",
-    "deploy:function": "npm run build:function && npx supabase functions deploy generate-story --project-ref okcoskjdspwqnvcilbsf"
+    "deploy:function": "npm run build:function && npx supabase functions deploy generate-story --project-ref okcoskjdspwqnvcilbsf",
+    "audio:placeholders": "node scripts/generate-placeholder-audio.mjs"
   },
   "private": true
 }

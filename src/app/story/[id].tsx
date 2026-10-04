@@ -2,7 +2,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { getCategory } from '@engine/index';
-import { AajiIllustration, AppText, BackButton, BigButton, ProgressBar, RoundButton, Screen } from '@/components';
+import {
+  AajiIllustration,
+  AppText,
+  BackButton,
+  BigButton,
+  ProgressBar,
+  RoundButton,
+  Screen,
+  StoryFeedback,
+} from '@/components';
 import { useStoryPlayer } from '@/hooks/useStoryPlayer';
 import { colors, spacing } from '@/theme';
 import { formatDuration } from '@/utils/format';
@@ -10,7 +19,8 @@ import { formatDuration } from '@/utils/format';
 /** 6. Story Player — audio first; the story text is intentionally not shown. */
 export default function StoryPlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite } = useStoryPlayer(id);
+  const { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite, reaction, setReaction } =
+    useStoryPlayer(id);
 
   if (notFound) {
     return (
@@ -50,7 +60,7 @@ export default function StoryPlayerScreen() {
       </View>
 
       <View style={styles.center}>
-        <AajiIllustration size={220} />
+        <AajiIllustration size={status.didFinish ? 140 : 220} />
         <View style={styles.titleBlock}>
           <AppText variant="caption" muted center>
             {category.emoji} {category.label}
@@ -71,6 +81,8 @@ export default function StoryPlayerScreen() {
             </AppText>
           </View>
         </View>
+
+        {status.didFinish ? <StoryFeedback value={reaction} onChange={setReaction} /> : null}
 
         {status.waiting ? (
           <AppText variant="caption" muted center>

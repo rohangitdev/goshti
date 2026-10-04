@@ -7,11 +7,15 @@ import { Platform } from 'react-native';
 
 import { config } from '@/config';
 
+import { LayeredStoryAudioService, StorySoundscape } from './audioMixerService';
 import type { AudioService } from './audioService';
 import { ClipAudioService } from './clipAudioService';
 import { ExpoVoiceFileStore } from './expoVoiceFiles';
 import { SmartAudioService } from './smartAudioService';
 import { ChildProfileService } from './childProfileService';
+import { LocalFeedbackService, type FeedbackService } from './feedbackService';
+import { bundledSounds } from './soundAssets';
+import { ExpoSoundPlayerFactory } from './soundPlayer';
 import { SpeechAudioService } from './speechAudioService';
 import { AsyncStorageService, type StorageService } from './storageService';
 import { BackendStoryGenerator, LocalMockGenerator, type StoryGenerator } from './storyGenerator';
@@ -19,6 +23,7 @@ import { RandomStoryPrefetcher } from './storyPrefetcher';
 import { DefaultStoryService, type StoryService } from './storyService';
 import { LocalSubscriptionService, type SubscriptionService } from './subscriptionService';
 import { MockTtsService, type TtsService } from './ttsService';
+import { DefaultUiSoundService, type UiSoundService } from './uiSoundService';
 import { BackendVoiceClient, VoiceService } from './voiceService';
 
 const backend = config.storyBackend;
@@ -43,12 +48,23 @@ export const voiceService: VoiceService | null =
       })
     : null;
 
-// Plays Aaji's voice when available, otherwise the phone's built-in voice.
-export const audioService: AudioService = new SmartAudioService(
-  voiceService ? new ClipAudioService(voiceService) : null,
-  new SpeechAudioService(),
-  voiceService,
+const soundPlayers = new ExpoSoundPlayerFactory();
+
+// Story audio: GOSHTI signature → Aaji's voice (or the phone's voice as a fallback), with the
+// story's sound effects, ambience and music mixed underneath at age-appropriate levels.
+export const audioService: AudioService = new LayeredStoryAudioService(
+  new SmartAudioService(voiceService ? new ClipAudioService(voiceService) : null, new SpeechAudioService(), voiceService),
+  new StorySoundscape({ catalog: bundledSounds, players: soundPlayers }),
 );
+
+// Restrained interface sounds — screens ask by meaning, never by file.
+export const uiSoundService: UiSoundService = new DefaultUiSoundService({
+  catalog: bundledSounds,
+  players: soundPlayers,
+  settings: storageService,
+});
+
+export const feedbackService: FeedbackService = new LocalFeedbackService(storageService);
 export const childProfileService = new ChildProfileService(storageService);
 export const storyService: StoryService = new DefaultStoryService({
   generator: storyGenerator,
@@ -73,4 +89,6 @@ export const storyService: StoryService = new DefaultStoryService({
 export { StoryGenerationError, StoryLimitReachedError } from './storyService';
 export { PLANS, PurchasesNotAvailableError } from './subscriptionService';
 export type { PlaybackStatus } from './audioService';
+export { REACTIONS, type StoryReaction } from './feedbackService';
+export type { UiSoundId } from './uiSoundService';
 export type { PlanDefinition, PlanPrice } from './subscriptionService';

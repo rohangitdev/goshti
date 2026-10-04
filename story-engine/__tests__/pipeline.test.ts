@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { audioScriptToText } from '../audio';
 import { CATEGORY_IDS } from '../categories';
+import { AAJI_INTRO_LINE } from '../soundDesign';
 import { advancePipeline, generateStory, startPipeline } from '../pipeline';
 import { ProviderError } from '../provider';
 import { MockStoryAIProvider } from '../providers/mock';
@@ -98,8 +100,9 @@ describe('story pipeline', () => {
     const r = await generateStory(random, provider);
     expect(r.status).toBe('APPROVED');
     if (r.status === 'APPROVED') {
-      const spoken = r.story.audioScript.segments.flatMap((s) => (s.type === 'NARRATION' || s.type === 'DIALOGUE' ? [s.text] : [])).join(' ');
+      const spoken = audioScriptToText(r.story.audioScript);
       expect(spoken.replace(/\s+/g, '')).toBe(r.story.storyText.replace(/["\s]/g, ''));
+      expect(r.story.audioScript.segments[0]).toMatchObject({ type: 'NARRATION', text: AAJI_INTRO_LINE });
       expect(r.trace.audioScriptWarnings.join()).toContain('not approved');
     }
   });

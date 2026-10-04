@@ -3,19 +3,22 @@ import * as Speech from 'expo-speech';
 import type { AudioScript, VoiceStyle } from '@engine/index';
 import type { GoshtiStory } from '@/types/models';
 
-import type { AudioService, PlaybackListener, PlaybackStatus } from './audioService';
+import type { AudioService, PlaybackListener, PlaybackStatus, SoundCue } from './audioService';
 
 /**
  * TEMPORARY stand-in until server-side Aaji TTS exists: reads the story's AudioScript
  * aloud with the phone's built-in voice. Narration and dialogue are spoken (dialogue
  * with a different pitch per character, nudged by emotion tags), pauses are respected,
- * SFX/ambience/music are skipped.
+ * and SFX/ambience/music instructions are handed to the mixer (onCue) at the right moment.
  *
  * Android cannot pause speech mid-sentence, so pause stops the current line and
  * play resumes from the start of that line, on every platform.
  */
 
-type Item = { kind: 'speak'; text: string; pitch: number; rate: number; estMs: number } | { kind: 'wait'; estMs: number };
+type Item =
+  | { kind: 'speak'; text: string; pitch: number; rate: number; estMs: number }
+  | { kind: 'wait'; estMs: number }
+  | { kind: 'cue'; cue: SoundCue; estMs: number };
 
 const VOICE: Record<VoiceStyle, { pitch: number; rate: number }> = {
   AAJI: { pitch: 0.95, rate: 0.85 },
@@ -66,7 +69,8 @@ function estimateSpeechMs(text: string, rate: number): number {
 
 /**
  * Accepts both the current AudioScript (v2) and stories saved by older app versions.
- * Narration/dialogue are spoken, pauses kept, SFX become a short gap, ambience/music skipped.
+ * Narration/dialogue are spoken, pauses kept, sound instructions become cues (an SFX also
+ * leaves a short gap so it isn't spoken over).
  */
 function toItems(script: AudioScript | { segments: readonly unknown[] }): Item[] {
   const items: Item[] = [];
@@ -79,8 +83,8 @@ function toItems(script: AudioScript | { segments: readonly unknown[] }): Item[]
       items.push({ kind: 'speak', text: s.text, ...v, estMs: estimateSpeechMs(s.text, v.rate) });
     } else if (s.type === 'PAUSE') {
       items.push({ kind: 'wait', estMs: Math.min(4000, Math.max(200, Number(s.durationMs) || 600)) });
-    } else if (s.type === 'SFX') {
-      items.push({ kind: 'wait', estMs: SFX_GAP_MS });
+    } else if (s.type === 'SFX' || s.type === 'AMBIENCE' || s.type === 'MUSIC_CUE') {
+      items.push({ kind: 'cue', cue: raw as SoundCue, estMs: s.type === 'SFX' ? SFX_GAP_MS : 0 });
     }
   }
   return items;
@@ -112,6 +116,8 @@ export class SpeechAudioService implements AudioService {
   private waitTimer: ReturnType<typeof setTimeout> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
   private language: Promise<string> | null = null;
+
+  onCue: ((cue: SoundCue) => void) | null = null;
 
   async load(story: GoshtiStory) {
     this.halt();
@@ -172,6 +178,11 @@ export class SpeechAudioService implements AudioService {
       this.runCurrent();
     };
 
+    if (item.kind === 'cue') {
+      this.onCue?.(item.cue);
+      this.waitTimer = setTimeout(next, item.estMs);
+      return;
+    }
     if (item.kind === 'wait') {
       this.waitTimer = setTimeout(next, item.estMs);
       return;

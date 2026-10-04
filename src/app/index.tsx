@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { BRAND } from '@/brand';
 import { AajiIllustration, AppText, BigButton, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
 import { colors } from '@/theme';
@@ -17,12 +18,17 @@ export default function WelcomeScreen() {
   return (
     <Screen footer={<BigButton label="सुरू करा" onPress={start} disabled={loading} />}>
       <View style={styles.center}>
-        <AppText variant="display" center color={colors.primary}>
-          गोष्टी
-        </AppText>
+        <View>
+          <AppText variant="display" center color={colors.primary}>
+            {BRAND.nameMarathi}
+          </AppText>
+          <AppText variant="caption" center muted style={styles.latin}>
+            {BRAND.name}
+          </AppText>
+        </View>
         <AajiIllustration variant="scene" size={240} />
         <AppText variant="heading" center>
-          आजीच्या गोष्टी, तुमच्या कल्पनेतून.
+          {BRAND.tagline}
         </AppText>
       </View>
     </Screen>
@@ -31,4 +37,5 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', gap: 32 },
+  latin: { letterSpacing: 4 },
 });

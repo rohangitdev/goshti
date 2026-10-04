@@ -6,8 +6,11 @@ import { LIBRARY, type LibraryStory } from './stories';
 
 export { findLibraryStory, LIBRARY, type LibraryStory } from './stories';
 
-/** Deterministic audio script for a library story (speakers from the story's metadata). */
-export function libraryAudioScript(story: LibraryStory): AudioScript {
+/**
+ * Deterministic audio script for a library story (speakers from the story's metadata).
+ * Pass the listener's age so the app and the backend build exactly the same script.
+ */
+export function libraryAudioScript(story: LibraryStory, age?: number): AudioScript {
   const quotes = segmentStory(story.storyText).flatMap((p) => p.parts).filter((x) => x.kind === 'quote');
   const fallback = Object.keys(story.voices)[0] ?? 'आजी';
   const direction: AudioDirection = {
@@ -25,6 +28,8 @@ export function libraryAudioScript(story: LibraryStory): AudioScript {
   };
   return buildAudioScript(story.storyText, direction, {
     closingEmotion: story.category === 'bedtime' ? 'sleepy' : undefined,
+    age,
+    intro: true,
   }).script;
 }
 
@@ -63,7 +68,7 @@ export function pickLibraryStory(
 
 /** Library story in the same shape the app gets from the engine. */
 export function libraryToApproved(story: LibraryStory, age: ChildAge): ApprovedStory {
-  const audioScript = libraryAudioScript(story);
+  const audioScript = libraryAudioScript(story, age);
   const profile = Object.values(PROFILES).find((p) => p.ageBand === story.ageBand)!;
   return {
     title: story.title,

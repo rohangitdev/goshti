@@ -4,9 +4,10 @@
  */
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 
+import { buildTtsChunks } from '@engine/index';
 import type { GoshtiStory } from '@/types/models';
 
-import type { AudioService, PlaybackListener, PlaybackStatus } from './audioService';
+import type { AudioService, PlaybackListener, PlaybackStatus, SoundCue } from './audioService';
 import type { VoiceService, VoiceState } from './voiceService';
 
 const IDLE: PlaybackStatus = { storyId: null, isPlaying: false, positionSeconds: 0, durationSeconds: 0, didFinish: false };
@@ -25,6 +26,13 @@ export class ClipAudioService implements AudioService {
   private unsubscribeVoice: (() => void) | null = null;
   private audioModeSet = false;
   private retried = false;
+  /** Per audio part: the sound cues inside it and where they fall (0–1 of the part). */
+  private partCues: { cue: SoundCue; at: number }[][] | null = null;
+  private firedCues = new Set<number>();
+  private cueTimers: ReturnType<typeof setTimeout>[] = [];
+
+  /** Sound instructions (SFX / ambience / music), timed to Aaji's voice. */
+  onCue: ((cue: SoundCue) => void) | null = null;
 
   /** Called when Aaji's voice can't be played (render failed) — the caller switches to the phone voice. */
   onUnavailable: (() => void) | null = null;
@@ -37,6 +45,8 @@ export class ClipAudioService implements AudioService {
     this.fallbackDuration = story.durationSeconds;
     this.index = 0;
     this.retried = false;
+    this.partCues = cuePlan(story, this.state?.totalChunks);
+    this.firedCues.clear();
     this.unsubscribeVoice = this.voice.subscribe(story.id, (s) => {
       this.state = s;
       this.emit({ durationSeconds: this.totalSeconds() });
@@ -61,6 +71,7 @@ export class ClipAudioService implements AudioService {
       this.player.play();
       this.emit({ isPlaying: true, waiting: false });
       this.startTicker();
+      this.scheduleCues(this.player.currentTime || 0);
     } else if (!this.gapTimer) {
       this.startCurrent();
     }
@@ -72,6 +83,7 @@ export class ClipAudioService implements AudioService {
     if (this.gapTimer) clearTimeout(this.gapTimer);
     this.gapTimer = null;
     this.stopTicker();
+    this.clearCueTimers();
     this.emit({ isPlaying: false, waiting: false });
   }
 
@@ -80,6 +92,8 @@ export class ClipAudioService implements AudioService {
     if (this.gapTimer) clearTimeout(this.gapTimer);
     this.gapTimer = null;
     this.stopTicker();
+    this.clearCueTimers();
+    this.partCues = null;
     this.unsubscribeVoice?.();
     this.unsubscribeVoice = null;
     this.player?.remove();
@@ -140,9 +154,12 @@ export class ClipAudioService implements AudioService {
     this.player.play();
     this.emit({ isPlaying: true, waiting: false });
     this.startTicker();
+    this.firedCues.clear();
+    this.scheduleCues(0);
   }
 
   private onPartEnded() {
+    this.flushCues();
     const finished = this.state?.parts[this.index];
     this.index += 1;
     if (!this.state || this.index >= this.state.totalChunks) {
@@ -156,6 +173,37 @@ export class ClipAudioService implements AudioService {
       this.gapTimer = null;
       this.startCurrent();
     }, finished?.pauseAfterMs ?? 0);
+  }
+
+  /** Schedules the current part's not-yet-played cues, relative to `fromSeconds` into the part. */
+  private scheduleCues(fromSeconds: number) {
+    this.clearCueTimers();
+    const cues = this.partCues?.[this.index];
+    const part = this.state?.parts[this.index];
+    if (!cues?.length || !part) return;
+    cues.forEach((c, i) => {
+      if (this.firedCues.has(i)) return;
+      const delayMs = Math.max(0, c.at * part.seconds - fromSeconds) * 1000;
+      this.cueTimers.push(setTimeout(() => this.fireCue(i), delayMs));
+    });
+  }
+
+  private fireCue(i: number) {
+    const c = this.partCues?.[this.index]?.[i];
+    if (!c || this.firedCues.has(i)) return;
+    this.firedCues.add(i);
+    this.onCue?.(c.cue);
+  }
+
+  /** A part ended: any cue still pending (e.g. "stop ambience" at its very end) plays now. */
+  private flushCues() {
+    this.clearCueTimers();
+    this.partCues?.[this.index]?.forEach((_, i) => this.fireCue(i));
+  }
+
+  private clearCueTimers() {
+    this.cueTimers.forEach(clearTimeout);
+    this.cueTimers = [];
   }
 
   private totalSeconds(): number {
@@ -191,5 +239,21 @@ export class ClipAudioService implements AudioService {
   private setStatus(next: PlaybackStatus) {
     this.status = next;
     this.listeners.forEach((l) => l(next));
+  }
+}
+
+/**
+ * Rebuilds the backend's chunking of the story (deterministic: same script, same age) to know
+ * which sound cues fall inside each audio part. If it doesn't match the rendered parts, sounds
+ * are skipped rather than played at the wrong moment.
+ */
+export function cuePlan(story: GoshtiStory, totalChunks: number | undefined): { cue: SoundCue; at: number }[][] | null {
+  try {
+    if (!totalChunks || story.audioScript?.version !== 2) return null;
+    const chunks = buildTtsChunks(story.audioScript, { sentencePauses: story.age <= 5 });
+    if (chunks.length !== totalChunks) return null;
+    return chunks.map((c) => c.cues.map((cue, i) => ({ cue, at: c.cueAt[i] ?? 0 })));
+  } catch {
+    return null;
   }
 }

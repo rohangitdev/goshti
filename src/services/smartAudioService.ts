@@ -5,7 +5,7 @@
  */
 import type { GoshtiStory } from '@/types/models';
 
-import type { AudioService, PlaybackListener, PlaybackStatus } from './audioService';
+import type { AudioService, PlaybackListener, PlaybackStatus, SoundCue } from './audioService';
 import type { ClipAudioService } from './clipAudioService';
 import type { VoiceService } from './voiceService';
 
@@ -16,6 +16,9 @@ export class SmartAudioService implements AudioService {
   private status: PlaybackStatus;
   private story: GoshtiStory | null = null;
 
+  /** Sound instructions from whichever narrator is active. */
+  onCue: ((cue: SoundCue) => void) | null = null;
+
   constructor(
     private readonly clip: ClipAudioService | null,
     private readonly speech: AudioService,
@@ -24,6 +27,9 @@ export class SmartAudioService implements AudioService {
     this.active = speech;
     this.status = speech.getStatus();
     if (clip) clip.onUnavailable = () => void this.switchToSpeech(true);
+    for (const service of [clip, speech]) {
+      if (service) service.onCue = (cue) => service === this.active && this.onCue?.(cue);
+    }
   }
 
   async load(story: GoshtiStory) {

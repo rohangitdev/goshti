@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { isStoryCategory, type StoryMode } from '@engine/index';
 import { AajiIllustration, AppText, BigButton, Screen } from '@/components';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
+import { uiSoundService } from '@/services';
 import { colors } from '@/theme';
 
 /** 5. Generating */
@@ -32,6 +33,7 @@ export default function GeneratingScreen() {
 
   useEffect(() => {
     if (state.status === 'done') {
+      uiSoundService.play('STORY_READY');
       router.replace({ pathname: '/story/[id]', params: { id: state.storyId } });
     }
   }, [state]);
@@ -50,7 +52,7 @@ export default function GeneratingScreen() {
         <View style={styles.center}>
           <AajiIllustration size={200} />
           <AppText variant="heading" center>
-            या महिन्यातल्या नव्या गोष्टी संपल्या. चल, आवडती जुनी गोष्ट पुन्हा ऐकूया!
+            या महिन्याच्या नव्या गोष्टी ऐकून झाल्या! चल, आवडती गोष्ट पुन्हा ऐकूया.
           </AppText>
         </View>
       </Screen>

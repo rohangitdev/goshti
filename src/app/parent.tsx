@@ -1,33 +1,76 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Switch, View } from 'react-native';
 
-import { AppText, BackButton, BigButton, PlanCard, Screen } from '@/components';
+import { BRAND } from '@/brand';
+import { AppText, BackButton, BigButton, ParentGate, PlanCard, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
 import { useSubscription } from '@/hooks/useSubscription';
-import { PLANS, subscriptionService } from '@/services';
+import { feedbackService, PLANS, REACTIONS, subscriptionService, uiSoundService, type StoryReaction } from '@/services';
 import { colors, radius, spacing } from '@/theme';
 import { toMarathiDigits } from '@/utils/format';
 
-/** 8. Parent / Upgrade — the only place plans and prices appear. */
+/** 8. Parent mode — behind a simple parent gate; the only place plans and prices appear. */
 export default function ParentScreen() {
+  const [unlocked, setUnlocked] = useState(false);
+
+  if (!unlocked) {
+    return (
+      <Screen>
+        <View style={styles.header}>
+          <BackButton />
+        </View>
+        <View style={styles.gate}>
+          <ParentGate onPass={() => setUnlocked(true)} />
+        </View>
+      </Screen>
+    );
+  }
+  return <ParentSettings />;
+}
+
+function ParentSettings() {
   const { profile } = useChildProfile();
   const subscription = useSubscription();
   const [notice, setNotice] = useState<string | null>(null);
+  const [appSounds, setAppSounds] = useState(true);
+  const [feedback, setFeedback] = useState<Record<StoryReaction, number> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    uiSoundService.isEnabled().then((on) => active && setAppSounds(on));
+    feedbackService.summary().then((s) => active && setFeedback(s));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const toggleSounds = (on: boolean) => {
+    setAppSounds(on);
+    void uiSoundService.setEnabled(on);
+  };
 
   const upgrade = async (period: 'month' | 'year') => {
     try {
       await subscriptionService.purchase('PLUS', period);
     } catch {
-      setNotice('GOSHTI Plus लवकरच उपलब्ध होईल.');
+      setNotice(`${BRAND.plusName} लवकरच उपलब्ध होईल.`);
     }
   };
+
+  const atLimit = !!subscription && subscription.storiesGeneratedThisMonth >= subscription.monthlyLimit;
+  const feedbackTotal = feedback ? Object.values(feedback).reduce((a, b) => a + b, 0) : 0;
 
   return (
     <Screen scroll>
       <View style={styles.header}>
         <BackButton />
-        <AppText variant="title">पालकांसाठी</AppText>
+        <View>
+          <AppText variant="title">पालकांसाठी</AppText>
+          <AppText variant="caption" muted>
+            {BRAND.name} · {BRAND.warmName}
+          </AppText>
+        </View>
       </View>
 
       {profile ? (
@@ -45,11 +88,52 @@ export default function ParentScreen() {
           <AppText variant="title" color={colors.primary}>
             {toMarathiDigits(subscription.storiesGeneratedThisMonth)} / {toMarathiDigits(subscription.monthlyLimit)}
           </AppText>
+          <AppText variant="caption" muted>
+            आधी ऐकलेल्या गोष्टी पुन्हा ऐकणं नेहमी मोफत आहे.
+          </AppText>
+          {atLimit ? (
+            <AppText muted>
+              या महिन्याच्या नव्या गोष्टी पूर्ण झाल्या. मुलं आवडत्या गोष्टी पुन्हा ऐकू शकतात; पुढच्या महिन्यात नव्या गोष्टी
+              परत मिळतील. अधिक नव्या गोष्टी हव्या असल्यास खाली {BRAND.plusName} पाहू शकता.
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
+
+      <View style={[styles.card, styles.row]}>
+        <View style={styles.rowText}>
+          <AppText variant="label">ॲपमधले छोटे आवाज</AppText>
+          <AppText variant="caption" muted>
+            निवड, आवडती गोष्ट, गोष्ट संपल्यावरचा हलका आवाज. गोष्टीच्या आवाजावर परिणाम होत नाही.
+          </AppText>
+        </View>
+        <Switch
+          value={appSounds}
+          onValueChange={toggleSounds}
+          trackColor={{ true: colors.leaf, false: colors.border }}
+          thumbColor={colors.surface}
+          accessibilityLabel="ॲपमधले छोटे आवाज"
+        />
+      </View>
+
+      {feedback && feedbackTotal > 0 ? (
+        <View style={styles.card}>
+          <AppText variant="label">मुलांना गोष्टी कशा वाटल्या</AppText>
+          <View style={styles.feedbackRow}>
+            {REACTIONS.map((r) => (
+              <AppText key={r.id}>
+                {r.emoji} {toMarathiDigits(feedback[r.id])}
+              </AppText>
+            ))}
+          </View>
         </View>
       ) : null}
 
       <PlanCard plan={PLANS.FREE} current={subscription?.plan === 'FREE'} />
       <PlanCard plan={PLANS.PLUS} current={subscription?.plan === 'PLUS'} highlight />
+      <AppText variant="caption" muted center>
+        दोन्ही प्लॅनमध्ये गोष्टींचा दर्जा आणि आजीचा आवाज सारखाच आहे; {BRAND.plusName} मध्ये फक्त नव्या गोष्टी जास्त मिळतात.
+      </AppText>
 
       {subscription?.plan !== 'PLUS' ? (
         <View style={styles.actions}>
@@ -68,6 +152,10 @@ export default function ParentScreen() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  gate: { flex: 1, justifyContent: 'center' },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, gap: spacing.sm },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  rowText: { flex: 1, gap: spacing.xs },
+  feedbackRow: { flexDirection: 'row', gap: spacing.lg },
   actions: { gap: spacing.md },
 });

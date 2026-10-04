@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { ChildProfile, GoshtiStory, Subscription } from '@/types/models';
 
+import type { FeedbackRecords } from './feedbackService';
 import type { PreparedPool } from './storyPrefetcher';
+import type { AppSettings } from './uiSoundService';
 import type { VoiceStates } from './voiceService';
 
 /**
@@ -33,6 +35,14 @@ export interface StorageService {
   /** Aaji-voice rendering state per story id (see voiceService). */
   getVoiceStates(): Promise<VoiceStates>;
   saveVoiceStates(states: VoiceStates): Promise<void>;
+
+  /** Parent settings (e.g. app sounds on/off). */
+  getSettings(): Promise<AppSettings | null>;
+  saveSettings(settings: AppSettings): Promise<void>;
+
+  /** Optional 😍/🙂/😐 story feedback (see feedbackService). */
+  getFeedback(): Promise<FeedbackRecords>;
+  saveFeedback(records: FeedbackRecords): Promise<void>;
 }
 
 const KEYS = {
@@ -43,6 +53,8 @@ const KEYS = {
   usageMonth: 'goshti.usageMonth.v1',
   prepared: 'goshti.preparedStories.v1',
   voice: 'goshti.voice.v1',
+  settings: 'goshti.settings.v1',
+  feedback: 'goshti.feedback.v1',
 } as const;
 
 async function readJson<T>(key: string): Promise<T | null> {
@@ -110,5 +122,19 @@ export class AsyncStorageService implements StorageService {
   }
   saveVoiceStates(states: VoiceStates) {
     return writeJson(KEYS.voice, states);
+  }
+
+  getSettings() {
+    return readJson<AppSettings>(KEYS.settings);
+  }
+  saveSettings(settings: AppSettings) {
+    return writeJson(KEYS.settings, settings);
+  }
+
+  async getFeedback() {
+    return (await readJson<FeedbackRecords>(KEYS.feedback)) ?? {};
+  }
+  saveFeedback(records: FeedbackRecords) {
+    return writeJson(KEYS.feedback, records);
   }
 }

@@ -46,18 +46,18 @@ describe('audio script assembly', () => {
       ],
       narration: [{ paragraph: 1, emotion: 'playful' }],
       cues: [
-        { afterParagraph: 0, type: 'AMBIENCE', soundId: 'WIND', action: 'START' },
+        { afterParagraph: 0, type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'START' },
         { afterParagraph: 1, type: 'SFX', soundId: 'WHOOSH_SOFT' },
         { afterParagraph: 1, type: 'PAUSE', durationMs: 1500 },
       ],
     });
     const s = script.segments;
-    expect(s[0]).toEqual({ type: 'AMBIENCE', soundId: 'WIND', action: 'START' });
+    expect(s[0]).toEqual({ type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'START' });
     expect(s).toContainEqual({ type: 'DIALOGUE', character: 'चिऊ', text: 'झूम!', emotion: 'excited', voiceStyle: 'SMALL_CHILD' });
     const narr = s.filter((x) => x.type === 'NARRATION');
     expect(narr.every((x) => x.type === 'NARRATION' && x.emotion === 'playful')).toBe(true);
     expect(s).toContainEqual({ type: 'SFX', soundId: 'WHOOSH_SOFT' });
-    expect(s[s.length - 1]).toEqual({ type: 'AMBIENCE', soundId: 'WIND', action: 'STOP' });
+    expect(s[s.length - 1]).toEqual({ type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'STOP' });
   });
 
   it('drops unapproved sounds and URLs, clamps pauses', () => {
@@ -84,8 +84,8 @@ describe('audio script assembly', () => {
   });
 
   it('fallback adds ambience and keeps all text', () => {
-    const script = buildFallbackAudioScript(story, { ambience: 'WIND', closingEmotion: 'sleepy' });
-    expect(script.segments[0]).toEqual({ type: 'AMBIENCE', soundId: 'WIND', action: 'START' });
+    const script = buildFallbackAudioScript(story, { ambience: 'NIGHT_AMBIENCE', closingEmotion: 'sleepy' });
+    expect(script.segments[0]).toEqual({ type: 'AMBIENCE', soundId: 'NIGHT_AMBIENCE', action: 'START' });
     expect(coverageRatio(script, story)).toBeCloseTo(1, 1);
     const lastNarration = [...script.segments].reverse().find((x) => x.type === 'NARRATION');
     expect(lastNarration).toMatchObject({ emotion: 'sleepy' });

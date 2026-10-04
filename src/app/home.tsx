@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CATEGORIES, type StoryCategory } from '@engine/index';
+import { BRAND } from '@/brand';
 import { AppText, BigButton, CategoryTile, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
 import { useStoryWarmUp } from '@/hooks/useStoryWarmUp';
+import { uiSoundService } from '@/services';
 import { colors, spacing } from '@/theme';
 
 /** 3. Home — pick a category, then who chooses the story. */
@@ -13,13 +15,20 @@ export default function HomeScreen() {
   const { profile } = useChildProfile();
   useStoryWarmUp();
   const [category, setCategory] = useState<StoryCategory | null>(null);
+  const chooseCategory = (id: StoryCategory) => {
+    if (id !== category) uiSoundService.play('CATEGORY_SELECTED');
+    setCategory(id);
+  };
 
   const footer = category ? (
     <>
       <BigButton
         icon="👵🏽"
         label="आजीने गोष्ट निवडावी"
-        onPress={() => router.push({ pathname: '/generating', params: { category, mode: 'RANDOM' } })}
+        onPress={() => {
+          uiSoundService.play('AAJI_CHOOSES_STORY');
+          router.push({ pathname: '/generating', params: { category, mode: 'RANDOM' } });
+        }}
       />
       <BigButton
         icon="💭"
@@ -59,6 +68,9 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.heading}>
+        <AppText variant="caption" color={colors.primary}>
+          {BRAND.warmName}
+        </AppText>
         {profile ? (
           <AppText variant="label" muted>
             नमस्कार {profile.name}!
@@ -69,7 +81,7 @@ export default function HomeScreen() {
 
       <View style={styles.grid}>
         {CATEGORIES.map((c) => (
-          <CategoryTile key={c.id} category={c} selected={category === c.id} onPress={() => setCategory(c.id)} />
+          <CategoryTile key={c.id} category={c} selected={category === c.id} onPress={() => chooseCategory(c.id)} />
         ))}
       </View>
     </Screen>

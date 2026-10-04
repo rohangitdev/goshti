@@ -20,6 +20,11 @@ export interface TtsChunk {
   parts: TtsPart[];
   /** Non-spoken cues (SFX / ambience / music) that fall inside this chunk, in order. */
   cues: Exclude<AudioSegment, { type: 'NARRATION' | 'DIALOGUE' | 'PAUSE' }>[];
+  /**
+   * Where each cue falls inside the chunk, as a fraction (0–1) of the chunk's spoken text —
+   * lets the player place sounds at roughly the right moment of the rendered audio.
+   */
+  cueAt: number[];
   /** Silence the player adds after this chunk. */
   pauseAfterMs: number;
 }
@@ -86,14 +91,15 @@ export function buildTtsChunks(script: AudioScript, options: ChunkOptions = {}):
   const target = options.targetChars ?? 650;
   const max = options.maxChars ?? 1100;
   const chunks: TtsChunk[] = [];
-  let current: TtsChunk = { index: 0, parts: [], cues: [], pauseAfterMs: 0 };
+  let current: TtsChunk = { index: 0, parts: [], cues: [], cueAt: [], pauseAfterMs: 0 };
   let chars = 0;
 
   const close = (pauseAfterMs: number) => {
     if (current.parts.length === 0) return;
     current.pauseAfterMs = pauseAfterMs;
+    current.cueAt = current.cueAt.map((at) => (chars > 0 ? Math.min(1, at / chars) : 0));
     chunks.push(current);
-    current = { index: chunks.length, parts: [], cues: [], pauseAfterMs: 0 };
+    current = { index: chunks.length, parts: [], cues: [], cueAt: [], pauseAfterMs: 0 };
     chars = 0;
   };
 
@@ -126,6 +132,7 @@ export function buildTtsChunks(script: AudioScript, options: ChunkOptions = {}):
       }
       default:
         current.cues.push(seg);
+        current.cueAt.push(chars); // converted to a fraction when the chunk closes
     }
   }
   close(0);
@@ -142,6 +149,7 @@ export interface SpeechSynthesizer {
 export const AUDITION_CHUNK: TtsChunk = {
   index: 0,
   cues: [],
+  cueAt: [],
   pauseAfterMs: 0,
   parts: [
     { text: 'चला, आज मी तुम्हाला एक गंमत सांगते. <short pause>', style: narrationStyle(DEFAULT_AAJI_STYLE, 'warm') },

@@ -1,14 +1,32 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { audioService, storyService, type PlaybackStatus } from '@/services';
+import {
+  audioService,
+  feedbackService,
+  storyService,
+  uiSoundService,
+  type PlaybackStatus,
+  type StoryReaction,
+} from '@/services';
 import type { GoshtiStory } from '@/types/models';
 
 export function useStoryPlayer(storyId: string | undefined) {
   const [loaded, setLoaded] = useState<{ id: string; story: GoshtiStory | null } | null>(null);
   const [isFavourite, setIsFavourite] = useState(false);
+  const [reaction, setReactionState] = useState<StoryReaction | null>(null);
   const [status, setStatus] = useState<PlaybackStatus>(audioService.getStatus());
+  const wasFinished = useRef(audioService.getStatus().didFinish);
 
-  useEffect(() => audioService.subscribe(setStatus), []);
+  useEffect(
+    () =>
+      audioService.subscribe((s) => {
+        // A short, warm ending sound once Aaji finishes — not on every pause.
+        if (s.didFinish && !wasFinished.current && s.storyId) uiSoundService.play('STORY_COMPLETE');
+        wasFinished.current = s.didFinish;
+        setStatus(s);
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!storyId) return;
@@ -18,6 +36,7 @@ export function useStoryPlayer(storyId: string | undefined) {
       if (!active) return;
       if (found) {
         setIsFavourite(await storyService.isFavourite(found.id));
+        setReactionState(await feedbackService.getReaction(found.id));
         await storyService.prepareVoice(found);
         await audioService.load(found);
       }
@@ -38,10 +57,23 @@ export function useStoryPlayer(storyId: string | undefined) {
   }, [status.isPlaying]);
 
   const toggleFavourite = useCallback(async () => {
-    if (story) setIsFavourite(await storyService.toggleFavourite(story.id));
+    if (!story) return;
+    const now = await storyService.toggleFavourite(story.id);
+    if (now) uiSoundService.play('FAVOURITE_SAVED');
+    setIsFavourite(now);
   }, [story]);
+
+  /** Optional 😍/🙂/😐 feedback, saved on the device. */
+  const setReaction = useCallback(
+    async (r: StoryReaction) => {
+      if (!story) return;
+      setReactionState(r);
+      await feedbackService.setReaction(story, r);
+    },
+    [story],
+  );
 
   const progress = status.durationSeconds > 0 ? status.positionSeconds / status.durationSeconds : 0;
 
-  return { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite };
+  return { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite, reaction, setReaction };
 }

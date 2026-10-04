@@ -1,4 +1,8 @@
+import type { AudioSegment } from '@engine/index';
 import type { GoshtiStory } from '@/types/models';
+
+/** A non-spoken AudioScript instruction (sound effect, ambience bed, music cue). */
+export type SoundCue = Exclude<AudioSegment, { type: 'NARRATION' | 'DIALOGUE' | 'PAUSE' }>;
 
 export interface PlaybackStatus {
   storyId: string | null;
@@ -10,6 +14,8 @@ export interface PlaybackStatus {
   voice?: 'aaji' | 'phone';
   /** Playing was requested but the next audio part isn't ready yet. */
   waiting?: boolean;
+  /** The GOSHTI signature is playing before the story. */
+  intro?: boolean;
 }
 
 export type PlaybackListener = (status: PlaybackStatus) => void;
@@ -25,6 +31,8 @@ export interface AudioService {
   unload(): Promise<void>;
   getStatus(): PlaybackStatus;
   subscribe(listener: PlaybackListener): () => void;
+  /** Narration services call this when the story reaches a sound instruction. */
+  onCue?: ((cue: SoundCue) => void) | null;
 }
 
 const IDLE: PlaybackStatus = {

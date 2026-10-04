@@ -7,7 +7,7 @@ import type { SpeechSynthesizer, TtsChunk } from '../tts';
 
 export const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-tts';
 export const DEFAULT_TTS_FALLBACKS = ['gemini-3.8-flash-lite-tts'];
-export const DEFAULT_TTS_VOICE = 'Sulafat';
+export const DEFAULT_TTS_VOICE = 'Aoede';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 export interface GeminiTtsConfig {

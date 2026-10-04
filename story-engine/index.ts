@@ -15,6 +15,8 @@ export * from './provider';
 export * from './request';
 export * from './schemas';
 export * from './sfx';
+export * from './soundDesign';
+export * from './tts';
 export * from './types';
 export * from './variety';
 export { MockStoryAIProvider } from './providers/mock';

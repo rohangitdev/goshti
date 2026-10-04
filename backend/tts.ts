@@ -8,10 +8,14 @@
  *
  * tts-render only accepts an audioToken that this backend issued when it approved a story,
  * so Aaji can never be made to say arbitrary text.
+ *
+ * This is GOSHTI's audio story service: app → backend → here → TTSProvider (Gemini today).
+ * Aaji is always a prebuilt synthetic voice (see resolveAajiVoice) — no voice cloning.
  */
 import { ProviderError } from '../story-engine/provider';
 import { DEFAULT_TTS_VOICE, GeminiSpeechSynthesizer } from '../story-engine/providers/geminiTts';
 import { AUDITION_CHUNK, AUDITION_VOICES, buildTtsChunks, DEFAULT_AAJI_STYLE } from '../story-engine/tts';
+import { resolveAajiVoice, SynthesizerTTSProvider, type TTSProvider } from '../story-engine/ttsProvider';
 import { findLibraryStory, libraryAudioScript } from '../story-engine/library';
 import type { AudioScript } from '../story-engine/types';
 import { openJson, sealJson } from './continuation';
@@ -20,7 +24,7 @@ export interface TtsEnv {
   GEMINI_API_KEY?: string;
   TTS_MODEL?: string;
   TTS_FALLBACK_MODEL?: string;
-  /** Aaji's prebuilt voice (default Sulafat). */
+  /** Aaji's prebuilt voice (default Aoede). Must be a prebuilt voice name. */
   TTS_VOICE?: string;
   /** Override Aaji's base voice direction. */
   TTS_STYLE?: string;
@@ -37,7 +41,6 @@ interface AudioTokenPayload {
 
 const PURPOSE = 'audio';
 const secretOf = (env: TtsEnv) => env.STORY_STATE_SECRET || env.GEMINI_API_KEY || 'goshti-mock-provider';
-const VOICE_RE = /^[A-Za-z]{2,24}$/;
 
 export function chunksFor(script: AudioScript, env: TtsEnv, age?: number) {
   return buildTtsChunks(script, {
@@ -52,6 +55,14 @@ export async function issueAudioToken(title: string, script: AudioScript, env: T
   return { audioToken: token, audioChunks: chunksFor(script, env, age).length, ttsAvailable: !!env.GEMINI_API_KEY };
 }
 
+/** The TTS provider behind Aaji's voice. Swap providers here (the app is unaffected). */
+export function createTtsProvider(env: TtsEnv): TTSProvider {
+  return new SynthesizerTTSProvider(
+    new GeminiSpeechSynthesizer({ apiKey: env.GEMINI_API_KEY ?? '', model: env.TTS_MODEL, fallbackModels: env.TTS_FALLBACK_MODEL }),
+    env.TTS_STYLE || DEFAULT_AAJI_STYLE,
+  );
+}
+
 export function isTtsAction(body: unknown): boolean {
   const a = (body as { action?: unknown } | null)?.action;
   return a === 'tts-voices' || a === 'tts-audition' || a === 'tts-render' || a === 'library-voice';
@@ -62,14 +73,14 @@ export async function handleTts(
   env: TtsEnv,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const b = (body ?? {}) as { action?: string; voice?: unknown; audioToken?: unknown; chunk?: unknown; id?: unknown; age?: unknown };
-  const voice = typeof b.voice === 'string' && VOICE_RE.test(b.voice) ? b.voice : env.TTS_VOICE || DEFAULT_TTS_VOICE;
+  const voice = resolveAajiVoice(b.voice, env.TTS_VOICE || DEFAULT_TTS_VOICE);
 
   if (b.action === 'library-voice') {
     // Library stories are known to the server, so only an id is accepted — never text.
     const story = typeof b.id === 'string' ? findLibraryStory(b.id) : undefined;
     if (!story) return { status: 404, body: { status: 'INVALID_REQUEST', errors: ['unknown library story'] } };
     const age = Number(b.age);
-    return { status: 200, body: await issueAudioToken(story.title, libraryAudioScript(story), env, Number.isFinite(age) ? age : undefined) };
+    return { status: 200, body: await issueAudioToken(story.title, libraryAudioScript(story, Number.isFinite(age) ? age : undefined), env, Number.isFinite(age) ? age : undefined) };
   }
 
   if (b.action === 'tts-voices') {
@@ -78,16 +89,12 @@ export async function handleTts(
   if (!env.GEMINI_API_KEY) {
     return { status: 503, body: { status: 'FAILED', reason: 'GEMINI_API_KEY is not set — text-to-speech unavailable' } };
   }
-  const tts = new GeminiSpeechSynthesizer({
-    apiKey: env.GEMINI_API_KEY,
-    model: env.TTS_MODEL,
-    fallbackModels: env.TTS_FALLBACK_MODEL,
-  });
+  const tts = createTtsProvider(env);
 
   try {
     if (b.action === 'tts-audition') {
       const t0 = Date.now();
-      const audio = await tts.synthesize(AUDITION_CHUNK, voice);
+      const audio = await tts.synthesizeScene(AUDITION_CHUNK, voice);
       return { status: 200, body: { voice, ...audio, ms: Date.now() - t0 } };
     }
 
@@ -101,7 +108,7 @@ export async function handleTts(
     }
     const chunk = chunks[index];
     const t0 = Date.now();
-    const audio = await tts.synthesize(chunk, voice);
+    const audio = await tts.synthesizeScene(chunk, voice);
     return {
       status: 200,
       body: {
@@ -111,6 +118,7 @@ export async function handleTts(
         ...audio,
         pauseAfterMs: chunk.pauseAfterMs,
         cues: chunk.cues,
+        cueAt: chunk.cueAt,
         ms: Date.now() - t0,
       },
     };

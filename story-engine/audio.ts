@@ -8,11 +8,14 @@
  */
 import { NARRATOR_EMOTIONS, VOICE_STYLES, type AudioDirection, type NarratorEmotion } from './schemas';
 import { isAllowedMusicMood, isAllowedSfx, type SfxId } from './sfx';
+import { AAJI_INTRO_LINE, AAJI_INTRO_PAUSE_MS, isAmbienceId, soundPolicyFor } from './soundDesign';
 import type { AudioScript, AudioSegment } from './types';
 
 export const PAUSE_LIMITS = { min: 200, max: 4000 };
-/** Sound design restraint: max SFX per minute of story. */
+/** Sound design restraint: max SFX per minute of story (default; see soundDesign for per-age policy). */
 export const MAX_SFX_PER_MINUTE = 3;
+/** Default max music cues per story. */
+export const MAX_MUSIC_CUES = 2;
 /** Default gap between paragraphs when the director adds none. */
 export const PARAGRAPH_GAP_MS = 600;
 
@@ -67,6 +70,10 @@ export interface BuildOptions {
   /** Used only when the direction has no ambience at all (mock / fallback). */
   ambience?: SfxId;
   closingEmotion?: NarratorEmotion;
+  /** Listener's age — picks the age-adaptive sound policy (SFX density, music cues). */
+  age?: number;
+  /** Start with Aaji's fixed intro line ("चला मग... गोष्ट सुरू करूया!"). */
+  intro?: boolean;
 }
 
 const EMPTY_DIRECTION: AudioDirection = { speakers: [], narration: [], cues: [] };
@@ -79,8 +86,11 @@ export function buildAudioScript(
   const d = direction ?? EMPTY_DIRECTION;
   const warnings: string[] = [];
   const paragraphs = segmentStory(storyText);
-  const maxSfx = Math.max(2, Math.round((options.estimatedMinutes ?? 3) * MAX_SFX_PER_MINUTE));
+  const policy = options.age !== undefined ? soundPolicyFor(options.age) : null;
+  const maxSfx = Math.max(2, Math.round((options.estimatedMinutes ?? 3) * (policy?.sfxPerMinute ?? MAX_SFX_PER_MINUTE)));
+  const maxMusic = policy?.maxMusicCues ?? MAX_MUSIC_CUES;
   let sfxCount = 0;
+  let musicCount = 0;
 
   const speakers = new Map(d.speakers.map((s) => [s.quote, s]));
   const narrationEmotion = new Map(
@@ -102,11 +112,23 @@ export function buildAudioScript(
         seg = { type: 'SFX', soundId: c.soundId };
       }
     } else if (c.type === 'AMBIENCE') {
+      const action = c.action ?? 'START';
       if (!isAllowedSfx(c.soundId)) warnings.push(`cue ${i}: ambience "${c.soundId}" not approved — dropped`);
-      else seg = { type: 'AMBIENCE', soundId: c.soundId, action: c.action ?? 'START' };
+      else if (isAmbienceId(c.soundId)) seg = { type: 'AMBIENCE', soundId: c.soundId, action };
+      else if (action === 'START' && sfxCount < maxSfx) {
+        // Not a background bed (e.g. BIRDS): play it once as a one-shot instead.
+        sfxCount += 1;
+        warnings.push(`cue ${i}: "${c.soundId}" is not an ambience bed — played once as SFX`);
+        seg = { type: 'SFX', soundId: c.soundId };
+      }
     } else if (c.type === 'MUSIC_CUE') {
+      const action = c.action ?? 'START';
       if (!isAllowedMusicMood(c.mood)) warnings.push(`cue ${i}: music mood "${c.mood}" not approved — dropped`);
-      else seg = { type: 'MUSIC_CUE', mood: c.mood, action: c.action ?? 'START' };
+      else if (action === 'START' && musicCount >= maxMusic) warnings.push(`cue ${i}: too many music cues — dropped`);
+      else {
+        if (action === 'START') musicCount += 1;
+        seg = { type: 'MUSIC_CUE', mood: c.mood, action };
+      }
     }
     if (!seg) return;
     const at = Math.max(0, Math.min(paragraphs.length, Math.round(c.afterParagraph)));
@@ -114,8 +136,13 @@ export function buildAudioScript(
   });
 
   const segments: AudioSegment[] = [];
+  if (options.intro) {
+    segments.push({ type: 'NARRATION', speaker: 'AAJI', text: AAJI_INTRO_LINE, emotion: 'warm' });
+    segments.push({ type: 'PAUSE', durationMs: AAJI_INTRO_PAUSE_MS });
+  }
   const hasAmbience = [...cuesAfter.values()].flat().some((s) => s.type === 'AMBIENCE');
-  if (options.ambience && !hasAmbience) segments.push({ type: 'AMBIENCE', soundId: options.ambience, action: 'START' });
+  const fallbackBed = options.ambience && isAmbienceId(options.ambience) ? options.ambience : undefined;
+  if (fallbackBed && !hasAmbience) segments.push({ type: 'AMBIENCE', soundId: fallbackBed, action: 'START' });
   segments.push(...(cuesAfter.get(0) ?? []));
 
   let emotion: NarratorEmotion | undefined;
@@ -145,7 +172,7 @@ export function buildAudioScript(
     const last = p.paragraph === paragraphs.length;
     if (!last && !cues.some((s) => s.type === 'PAUSE')) segments.push({ type: 'PAUSE', durationMs: PARAGRAPH_GAP_MS });
   }
-  if (options.ambience && !hasAmbience) segments.push({ type: 'AMBIENCE', soundId: options.ambience, action: 'STOP' });
+  if (fallbackBed && !hasAmbience) segments.push({ type: 'AMBIENCE', soundId: fallbackBed, action: 'STOP' });
 
   // Never leave ambience or music running at the end.
   const open = new Map<string, AudioSegment>();
@@ -173,7 +200,7 @@ export function buildAudioScript(
 /** Deterministic script with no AI direction (fallback and mock). */
 export function buildFallbackAudioScript(
   storyText: string,
-  options: { ambience?: SfxId; closingEmotion?: NarratorEmotion } = {},
+  options: { ambience?: SfxId; closingEmotion?: NarratorEmotion; age?: number; intro?: boolean } = {},
 ): AudioScript {
   return buildAudioScript(storyText, null, options).script;
 }
@@ -186,9 +213,11 @@ function letters(text: string): number {
   return (text.match(/\p{L}|\p{M}/gu) ?? []).length;
 }
 
+/** The spoken story text (Aaji's fixed intro line is not part of the story). */
 export function audioScriptToText(script: AudioScript): string {
   return script.segments
     .map((s) => (s.type === 'NARRATION' || s.type === 'DIALOGUE' ? s.text : null))
+    .filter((t) => t !== AAJI_INTRO_LINE)
     .filter((t): t is string => !!t)
     .join('\n');
 }

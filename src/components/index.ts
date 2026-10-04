@@ -9,3 +9,5 @@ export { ProgressBar } from './ProgressBar';
 export { RoundButton } from './RoundButton';
 export { Screen } from './Screen';
 export { StoryListItem } from './StoryListItem';
+export { ParentGate } from './ParentGate';
+export { StoryFeedback } from './StoryFeedback';

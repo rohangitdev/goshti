@@ -36,7 +36,7 @@ const WRITTEN: LibraryStory[] = [
     positiveValue: 'मिळून खेळणं',
     voices: { मनू: 'SMALL_CHILD', मोती: 'GENTLE_GIANT' },
     quoteSpeakers: ['मनू', 'मनू', 'मनू', 'मनू', 'मनू'],
-    ambience: 'BIRDS',
+    ambience: 'VILLAGE_AMBIENCE',
     storyText: `मनू मांजरीकडे एक लाल लाल चेंडू होता. गोल गोल, छोटा छोटा, लाल लाल चेंडू!
 
 मनूने चेंडूला हळूच धक्का दिला. टप टप टप... चेंडू पळाला!
@@ -121,7 +121,7 @@ const WRITTEN: LibraryStory[] = [
     positiveValue: 'युक्ती आणि सर्जनशीलता',
     voices: { टिकू: 'SMALL_CHILD', राणी: 'OLDER_CHILD' },
     quoteSpeakers: ['टिकू', 'टिकू', 'टिकू', 'टिकू', 'राणी', 'टिकू', 'टिकू'],
-    ambience: 'BIRDS',
+    ambience: 'VILLAGE_AMBIENCE',
     storyText: `"हा निळा खडू कुठून आला?" टिकूने अंगणात पडलेला एक चमकणारा खडू उचलला.
 
 टिकूने जमिनीवर एक छोटा पतंग काढला. आणि काय गंमत! पतंग फडफडला... आणि जमिनीवरून वर उडाला!
@@ -193,7 +193,7 @@ const WRITTEN: LibraryStory[] = [
     positiveValue: 'दयाळूपणा',
     voices: { सोनू: 'SMALL_CHILD', मीनू: 'OLDER_CHILD', आजोबा: 'WISE_OLD', पोपट: 'SQUEAKY' },
     quoteSpeakers: ['सोनू', 'सोनू', 'मीनू', 'मीनू', 'सोनू', 'मीनू', 'मीनू', 'आजोबा', 'मीनू', 'सोनू', 'आजोबा', 'पोपट'],
-    ambience: 'BIRDS',
+    ambience: 'VILLAGE_AMBIENCE',
     storyText: `"आजोबा, आपल्या झाडावरचे पेरू कोण नेतं?" सोनूने सकाळी सकाळीच विचारलं.
 
 आजोबांच्या अंगणात एक मोठं पेरूचं झाड होतं. रोज संध्याकाळी त्यावर पिकलेले पिवळे पेरू दिसायचे. आणि रोज सकाळी? ते गायब!

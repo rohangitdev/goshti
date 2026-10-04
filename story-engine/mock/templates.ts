@@ -245,6 +245,6 @@ export const MOCK_TEMPLATES: Record<StoryCategory, MockTemplate> = {
     positiveValue: 'दयाळूपणा',
     emotionalArc: ['excitement', 'curiosity', 'empathy', 'relief', 'warmth'],
     humourStyle: 'gentle',
-    ambience: 'WIND',
+    ambience: 'VILLAGE_AMBIENCE',
   },
 };
