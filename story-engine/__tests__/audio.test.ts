@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildFallbackAudioScript, coverageRatio, normalizeAudioScript } from '../audio';
+import { buildAudioScript, buildFallbackAudioScript, coverageRatio, markedStory, segmentStory } from '../audio';
 import { isAllowedMusicMood, isAllowedSfx, MUSIC_MOODS, SFX_IDS } from '../sfx';
 
-const story = 'चिऊ उडालं. "झूम!" ते म्हणालं.\n\nतारा हसला.';
+const story = 'चिऊ उडालं. "झूम!" ते म्हणालं.\n\nतारा हसला. "धन्यवाद," तो म्हणाला.';
 
 describe('SFX whitelist', () => {
   it('contains the 30 approved IDs and 8 moods', () => {
@@ -17,42 +17,77 @@ describe('SFX whitelist', () => {
   });
 });
 
-describe('audio script normalisation', () => {
-  it('drops unapproved sounds and URLs, clamps pauses, closes open ambience', () => {
-    const { script, warnings } = normalizeAudioScript(
-      {
-        segments: [
-          { type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'START' },
-          { type: 'NARRATION', text: 'चिऊ उडालं.', emotion: 'excited' },
-          { type: 'SFX', soundId: 'https://evil.example/x.mp3' },
-          { type: 'SFX', soundId: 'EXPLOSION' },
-          { type: 'DIALOGUE', character: 'चिऊ', text: 'झूम!', voiceStyle: 'SMALL_CHILD' },
-          { type: 'PAUSE', durationMs: 60000 },
-          { type: 'MUSIC_CUE', mood: 'DUBSTEP', action: 'START' },
-          { type: 'NARRATION', text: 'ते म्हणालं. तारा हसला.' },
-        ],
-      },
-      story,
-      3,
-    );
-    const types = script.segments.map((s) => s.type);
-    expect(types).not.toContain('MUSIC_CUE');
-    expect(script.segments.filter((s) => s.type === 'SFX')).toHaveLength(0);
-    expect(script.segments.find((s) => s.type === 'PAUSE')).toEqual({ type: 'PAUSE', durationMs: 4000 });
-    expect(script.segments[script.segments.length - 1]).toEqual({ type: 'AMBIENCE', soundId: 'FOREST_AMBIENCE', action: 'STOP' });
-    expect(warnings.some((w) => w.includes('not approved'))).toBe(true);
+describe('story segmentation', () => {
+  it('numbers paragraphs and quotes', () => {
+    const p = segmentStory(story);
+    expect(p).toHaveLength(2);
+    expect(p[0].parts).toEqual([
+      { kind: 'narration', text: 'चिऊ उडालं.' },
+      { kind: 'quote', quote: 1, text: 'झूम!' },
+      { kind: 'narration', text: 'ते म्हणालं.' },
+    ]);
+    expect(p[1].parts.find((x) => x.kind === 'quote')).toEqual({ kind: 'quote', quote: 2, text: 'धन्यवाद,' });
+    expect(markedStory(story)).toContain('[P2]');
+    expect(markedStory(story)).toContain('«Q2: "धन्यवाद,"»');
+  });
+});
+
+describe('audio script assembly', () => {
+  it('keeps the approved text exactly, whatever the director returns', () => {
+    const { script } = buildAudioScript(story, { speakers: [], narration: [], cues: [] });
+    expect(coverageRatio(script, story)).toBeCloseTo(1, 1);
+  });
+
+  it('applies speakers, carries narration emotion forward, places cues', () => {
+    const { script } = buildAudioScript(story, {
+      speakers: [
+        { quote: 1, character: 'चिऊ', voiceStyle: 'SMALL_CHILD', emotion: 'excited' },
+        { quote: 2, character: 'तारा', voiceStyle: 'SQUEAKY' },
+      ],
+      narration: [{ paragraph: 1, emotion: 'playful' }],
+      cues: [
+        { afterParagraph: 0, type: 'AMBIENCE', soundId: 'WIND', action: 'START' },
+        { afterParagraph: 1, type: 'SFX', soundId: 'WHOOSH_SOFT' },
+        { afterParagraph: 1, type: 'PAUSE', durationMs: 1500 },
+      ],
+    });
+    const s = script.segments;
+    expect(s[0]).toEqual({ type: 'AMBIENCE', soundId: 'WIND', action: 'START' });
+    expect(s).toContainEqual({ type: 'DIALOGUE', character: 'चिऊ', text: 'झूम!', emotion: 'excited', voiceStyle: 'SMALL_CHILD' });
+    const narr = s.filter((x) => x.type === 'NARRATION');
+    expect(narr.every((x) => x.type === 'NARRATION' && x.emotion === 'playful')).toBe(true);
+    expect(s).toContainEqual({ type: 'SFX', soundId: 'WHOOSH_SOFT' });
+    expect(s[s.length - 1]).toEqual({ type: 'AMBIENCE', soundId: 'WIND', action: 'STOP' });
+  });
+
+  it('drops unapproved sounds and URLs, clamps pauses', () => {
+    const { script, warnings } = buildAudioScript(story, {
+      speakers: [],
+      narration: [],
+      cues: [
+        { afterParagraph: 1, type: 'SFX', soundId: 'https://evil.example/x.mp3' },
+        { afterParagraph: 1, type: 'SFX', soundId: 'EXPLOSION' },
+        { afterParagraph: 1, type: 'MUSIC_CUE', mood: 'DUBSTEP', action: 'START' },
+        { afterParagraph: 1, type: 'PAUSE', durationMs: 60000 },
+      ],
+    });
+    expect(script.segments.some((x) => x.type === 'SFX' || x.type === 'MUSIC_CUE')).toBe(false);
+    expect(script.segments).toContainEqual({ type: 'PAUSE', durationMs: 4000 });
+    expect(warnings.filter((w) => w.includes('not approved'))).toHaveLength(3);
     expect(JSON.stringify(script)).not.toContain('http');
   });
 
   it('limits sound effect density', () => {
-    const many = Array.from({ length: 20 }, () => ({ type: 'SFX' as const, soundId: 'CLAP' }));
-    const { script } = normalizeAudioScript({ segments: [{ type: 'NARRATION', text: story }, ...many] }, story, 1);
-    expect(script.segments.filter((s) => s.type === 'SFX').length).toBeLessThanOrEqual(3);
+    const cues = Array.from({ length: 20 }, () => ({ afterParagraph: 1, type: 'SFX' as const, soundId: 'CLAP' }));
+    const { script } = buildAudioScript(story, { speakers: [], narration: [], cues }, { estimatedMinutes: 1 });
+    expect(script.segments.filter((x) => x.type === 'SFX').length).toBeLessThanOrEqual(3);
   });
 
-  it('fallback converter keeps all story text and splits quoted dialogue', () => {
-    const script = buildFallbackAudioScript(story);
-    expect(coverageRatio(script, story)).toBeGreaterThan(0.95);
-    expect(script.segments.some((s) => s.type === 'DIALOGUE' && s.text === 'झूम!')).toBe(true);
+  it('fallback adds ambience and keeps all text', () => {
+    const script = buildFallbackAudioScript(story, { ambience: 'WIND', closingEmotion: 'sleepy' });
+    expect(script.segments[0]).toEqual({ type: 'AMBIENCE', soundId: 'WIND', action: 'START' });
+    expect(coverageRatio(script, story)).toBeCloseTo(1, 1);
+    const lastNarration = [...script.segments].reverse().find((x) => x.type === 'NARRATION');
+    expect(lastNarration).toMatchObject({ emotion: 'sleepy' });
   });
 });

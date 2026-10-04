@@ -22,6 +22,8 @@ export interface BackendEnv {
   GEMINI_CRITIC_MODEL?: string;
   /** Used when the main model is overloaded. "none" disables. */
   GEMINI_FALLBACK_MODEL?: string;
+  /** minimal | low | medium | high | auto — one thinking level for all stages (default: per stage). */
+  GEMINI_THINKING?: string;
   /** "false" stops the backend returning the developer trace. */
   STORY_DEBUG?: string;
   /** off | summary | full */
@@ -66,6 +68,7 @@ export function createProvider(env: BackendEnv, deadlineAt?: number): { provider
         writerModel: env.GEMINI_WRITER_MODEL,
         criticModel: env.GEMINI_CRITIC_MODEL,
         fallbackModel: env.GEMINI_FALLBACK_MODEL,
+        thinking: (['minimal', 'low', 'medium', 'high', 'auto'] as const).find((l) => l === env.GEMINI_THINKING),
         deadlineAt,
       }),
     };

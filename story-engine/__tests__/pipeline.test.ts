@@ -93,11 +93,15 @@ describe('story pipeline', () => {
     expect(calls).toEqual([]);
   });
 
-  it('falls back to a deterministic audio script if the director drops text', async () => {
-    const { provider } = fakeProvider({ audio: { segments: [{ type: 'NARRATION', text: 'फक्त एक ओळ.' }] } });
+  it('audio script always carries the full approved text', async () => {
+    const { provider } = fakeProvider({ audio: { speakers: [], narration: [], cues: [{ afterParagraph: 1, type: 'SFX', soundId: 'NOT_A_SOUND' }] } });
     const r = await generateStory(random, provider);
     expect(r.status).toBe('APPROVED');
-    expect(r.trace.audioScriptWarnings.join()).toContain('fallback');
+    if (r.status === 'APPROVED') {
+      const spoken = r.story.audioScript.segments.flatMap((s) => (s.type === 'NARRATION' || s.type === 'DIALOGUE' ? [s.text] : [])).join(' ');
+      expect(spoken.replace(/\s+/g, '')).toBe(r.story.storyText.replace(/["\s]/g, ''));
+      expect(r.trace.audioScriptWarnings.join()).toContain('not approved');
+    }
   });
 
   it('keeps an approved story even if the audio director errors', async () => {

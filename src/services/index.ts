@@ -10,6 +10,7 @@ import { ChildProfileService } from './childProfileService';
 import { SpeechAudioService } from './speechAudioService';
 import { AsyncStorageService, type StorageService } from './storageService';
 import { BackendStoryGenerator, LocalMockGenerator, type StoryGenerator } from './storyGenerator';
+import { RandomStoryPrefetcher } from './storyPrefetcher';
 import { DefaultStoryService, type StoryService } from './storyService';
 import { LocalSubscriptionService, type SubscriptionService } from './subscriptionService';
 import { MockTtsService, type TtsService } from './ttsService';
@@ -28,6 +29,10 @@ export const audioService: AudioService = new SpeechAudioService();
 export const childProfileService = new ChildProfileService(storageService);
 export const storyService: StoryService = new DefaultStoryService({
   generator: storyGenerator,
+  // Prepares the next "आजीने गोष्ट निवडावी" story in the background (backend only).
+  prefetcher: config.prefetchRandomStories
+    ? new RandomStoryPrefetcher({ generator: storyGenerator, storage: storageService, subscription: subscriptionService })
+    : undefined,
   seedGenerator: new LocalMockGenerator(),
   tts: ttsService,
   storage: storageService,

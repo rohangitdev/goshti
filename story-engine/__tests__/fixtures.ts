@@ -1,4 +1,4 @@
-import type { IntentResult, RawAudioScript, StoryEvaluation, StoryPlan, WrittenStory } from '../schemas';
+import type { AudioDirection, IntentResult, StoryEvaluation, StoryPlan, WrittenStory } from '../schemas';
 import { CHECK_KEYS, SCORE_KEYS } from '../schemas';
 import type { StoryAIProvider } from '../provider';
 
@@ -57,7 +57,7 @@ export interface FakeOptions {
   intent?: IntentResult['intent'];
   evaluations?: StoryEvaluation[];
   story?: WrittenStory;
-  audio?: RawAudioScript | Error;
+  audio?: AudioDirection | Error;
 }
 
 export function fakeProvider(opts: FakeOptions = {}) {
@@ -90,14 +90,16 @@ export function fakeProvider(opts: FakeOptions = {}) {
       rewriteInputs.push(input);
       return { ...story, title: story.title + ' (rewritten)' };
     },
-    async createAudioScript(input) {
+    async createAudioScript() {
       calls.push('createAudioScript');
       if (opts.audio instanceof Error) throw opts.audio;
       return (
         opts.audio ?? {
-          segments: [
-            { type: 'AMBIENCE', soundId: 'CITY_AMBIENCE', action: 'START' },
-            ...input.story.storyText.split('\n\n').map((t) => ({ type: 'NARRATION' as const, text: t, emotion: 'warm' as const })),
+          speakers: [{ quote: 1, character: 'टिंकू', voiceStyle: 'SMALL_CHILD' }],
+          narration: [{ paragraph: 1, emotion: 'curious' }],
+          cues: [
+            { afterParagraph: 0, type: 'AMBIENCE', soundId: 'CITY_AMBIENCE', action: 'START' },
+            { afterParagraph: 1, type: 'SFX', soundId: 'CLOCK_TICK' },
           ],
         }
       );

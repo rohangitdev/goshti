@@ -3,7 +3,6 @@
  * the backend (without GEMINI_API_KEY) and tests all work without a model.
  * It does NOT write new stories — every category always returns the same template.
  */
-import { buildFallbackAudioScript } from '../audio';
 import type {
   AudioScriptInput,
   EvaluateInput,
@@ -16,7 +15,7 @@ import {
   CHECK_KEYS,
   SCORE_KEYS,
   type IntentResult,
-  type RawAudioScript,
+  type AudioDirection,
   type StoryEvaluation,
   type StoryPlan,
   type StoryRequest,
@@ -116,12 +115,17 @@ export class MockStoryAIProvider implements StoryAIProvider {
     return story;
   }
 
-  async createAudioScript({ plan, story }: AudioScriptInput): Promise<RawAudioScript> {
+  async createAudioScript({ plan, story }: AudioScriptInput): Promise<AudioDirection> {
     const t = MOCK_TEMPLATES[plan.category];
-    const script = buildFallbackAudioScript(story.storyText, {
-      ambience: t.ambience,
-      closingEmotion: plan.category === 'bedtime' ? 'sleepy' : 'warm',
-    });
-    return { segments: script.segments.map((s) => ({ ...s })) as RawAudioScript['segments'] };
+    const paragraphs = story.storyText.split(/\n\s*\n|\n/).filter((p) => p.trim()).length;
+    return {
+      speakers: [],
+      narration: [{ paragraph: 1, emotion: 'warm' }],
+      cues: [
+        { afterParagraph: 0, type: 'AMBIENCE', soundId: t.ambience, action: 'START' },
+        ...(t.heroSfx ? [{ afterParagraph: 1, type: 'SFX' as const, soundId: t.heroSfx }] : []),
+        { afterParagraph: paragraphs, type: 'AMBIENCE', soundId: t.ambience, action: 'STOP' },
+      ],
+    };
   }
 }

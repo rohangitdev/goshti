@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  RawAudioScriptSchema,
+  AudioDirectionSchema,
   StoryEvaluationSchema,
   StoryPlanSchema,
   toModelJsonSchema,
@@ -37,12 +37,14 @@ describe('structured schemas', () => {
   it('validates written stories and audio scripts', () => {
     expect(WrittenStorySchema.safeParse({ title: 'अ', storyText: 'ब' }).success).toBe(true);
     expect(WrittenStorySchema.safeParse({ title: 'अ' }).success).toBe(false);
-    expect(RawAudioScriptSchema.safeParse({ segments: [{ type: 'PAUSE', durationMs: 500 }] }).success).toBe(true);
-    expect(RawAudioScriptSchema.safeParse({ segments: [{ type: 'SING' }] }).success).toBe(false);
+    const ok = { speakers: [], narration: [], cues: [{ afterParagraph: 2, type: 'PAUSE', durationMs: 500 }] };
+    expect(AudioDirectionSchema.safeParse(ok).success).toBe(true);
+    expect(AudioDirectionSchema.safeParse({ ...ok, cues: [{ afterParagraph: 1, type: 'SING' }] }).success).toBe(false);
+    expect(AudioDirectionSchema.safeParse({ ...ok, speakers: [{ quote: 1, character: 'अ', voiceStyle: 'OPERA' }] }).success).toBe(false);
   });
 
   it('produces a model JSON schema without unsupported keywords', () => {
-    for (const schema of [StoryPlanSchema, StoryEvaluationSchema, WrittenStorySchema, RawAudioScriptSchema]) {
+    for (const schema of [StoryPlanSchema, StoryEvaluationSchema, WrittenStorySchema, AudioDirectionSchema]) {
       const text = JSON.stringify(toModelJsonSchema(schema));
       expect(text).not.toContain('$schema');
       expect(text).not.toContain('oneOf');

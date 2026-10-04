@@ -199,29 +199,51 @@ export const StoryEvaluationSchema = z.object({
 export type StoryEvaluation = z.infer<typeof StoryEvaluationSchema>;
 
 // ---------------------------------------------------------------------------
-// Audio script — model-facing FLAT segment, normalised later in audio.ts
+// Audio direction (audio director output)
+//
+// The approved story text is split into paragraphs and quotes BY CODE. The model only
+// returns small directions keyed by paragraph / quote number, so it cannot alter the
+// story text and its output stays tiny (fast).
 // ---------------------------------------------------------------------------
 
 export const SEGMENT_TYPES = ['NARRATION', 'DIALOGUE', 'PAUSE', 'SFX', 'AMBIENCE', 'MUSIC_CUE'] as const;
 export type SegmentType = (typeof SEGMENT_TYPES)[number];
 
-export const RawAudioSegmentSchema = z.object({
-  type: z.enum(SEGMENT_TYPES),
-  text: z.string().optional().describe('NARRATION / DIALOGUE only: exact words to speak.'),
-  character: z.string().optional().describe('DIALOGUE only: character name as in the story.'),
-  voiceStyle: z.enum(VOICE_STYLES).optional().describe('DIALOGUE only.'),
-  emotion: z.enum(NARRATOR_EMOTIONS).optional(),
-  durationMs: z.number().optional().describe('PAUSE only: 300–4000.'),
-  soundId: z.string().optional().describe('SFX / AMBIENCE only: an approved sound ID.'),
-  mood: z.string().optional().describe('MUSIC_CUE only: an approved music mood.'),
-  action: z.enum(['START', 'STOP']).optional().describe('AMBIENCE / MUSIC_CUE only.'),
-});
-export type RawAudioSegment = z.infer<typeof RawAudioSegmentSchema>;
+export const CUE_TYPES = ['PAUSE', 'SFX', 'AMBIENCE', 'MUSIC_CUE'] as const;
 
-export const RawAudioScriptSchema = z.object({
-  segments: z.array(RawAudioSegmentSchema),
+export const AudioDirectionSchema = z.object({
+  speakers: z
+    .array(
+      z.object({
+        quote: z.number().int().describe('Quote number Qn as marked in the story.'),
+        character: z.string().describe('Who says it (name as in the story). Use "आजी" if Aaji speaks to the listener.'),
+        voiceStyle: z.enum(VOICE_STYLES),
+        emotion: z.enum(NARRATOR_EMOTIONS).optional(),
+      }),
+    )
+    .describe('One entry per marked quote.'),
+  narration: z
+    .array(
+      z.object({
+        paragraph: z.number().int().describe('Paragraph number Pn.'),
+        emotion: z.enum(NARRATOR_EMOTIONS),
+      }),
+    )
+    .describe('Aaji\'s narration emotion — ONLY where it changes; it carries forward.'),
+  cues: z
+    .array(
+      z.object({
+        afterParagraph: z.number().int().describe('Insert after paragraph Pn. 0 = before the story starts.'),
+        type: z.enum(CUE_TYPES),
+        durationMs: z.number().optional().describe('PAUSE only: 300–4000.'),
+        soundId: z.string().optional().describe('SFX / AMBIENCE only: an approved sound ID.'),
+        mood: z.string().optional().describe('MUSIC_CUE only: an approved music mood.'),
+        action: z.enum(['START', 'STOP']).optional().describe('AMBIENCE / MUSIC_CUE only.'),
+      }),
+    )
+    .describe('Pauses and sound — sparingly.'),
 });
-export type RawAudioScript = z.infer<typeof RawAudioScriptSchema>;
+export type AudioDirection = z.infer<typeof AudioDirectionSchema>;
 
 // ---------------------------------------------------------------------------
 // JSON Schema for the model

@@ -9,7 +9,7 @@
  * IN_PROGRESS with the state, and the client calls again to continue. `generateStory`
  * runs everything in one go (tests, mock, local use).
  */
-import { buildFallbackAudioScript, estimateDurationSeconds, isCoverageAcceptable, normalizeAudioScript } from './audio';
+import { buildAudioScript, estimateDurationSeconds } from './audio';
 import { countWords, judgeEvaluation, localStoryChecks } from './evaluation';
 import type { StoryLogger } from './logging';
 import { resolveProfile, type ChildAge } from './profiles';
@@ -231,20 +231,20 @@ export async function advancePipeline(
         case 'AUDIO': {
           const plan = trace.plan!;
           const approved = trace.finalStory!;
-          // Falls back to a deterministic conversion so an approved story is never lost.
-          let audioScript;
+          // Text always comes from the approved story; the model only directs.
+          // If direction fails, the story still gets a plain script — never lost.
+          let direction = null;
           try {
-            const raw = await timed(() => provider.createAudioScript({ profile, plan, story: approved }));
-            const normalized = normalizeAudioScript(raw, approved.storyText, plan.estimatedDurationMinutes);
-            trace.audioScriptWarnings.push(...normalized.warnings);
-            if (isCoverageAcceptable(normalized.script, approved.storyText)) audioScript = normalized.script;
-            else trace.audioScriptWarnings.push('audio script did not preserve the approved text — used deterministic fallback');
+            direction = await timed(() => provider.createAudioScript({ profile, plan, story: approved }));
           } catch (e) {
-            trace.audioScriptWarnings.push(`audio director failed (${(e as Error).message}) — used deterministic fallback`);
+            trace.audioScriptWarnings.push(`audio director failed (${(e as Error).message}) — plain narration used`);
           }
-          audioScript ??= buildFallbackAudioScript(approved.storyText, {
-            closingEmotion: request.category === 'bedtime' ? 'sleepy' : 'warm',
+          const built = buildAudioScript(approved.storyText, direction, {
+            estimatedMinutes: plan.estimatedDurationMinutes,
+            closingEmotion: request.category === 'bedtime' ? 'sleepy' : direction ? undefined : 'warm',
           });
+          trace.audioScriptWarnings.push(...built.warnings);
+          const audioScript = built.script;
           trace.audioScript = audioScript;
           const evaluation = trace.critiques[trace.critiques.length - 1].evaluation;
           return finish({

@@ -5,11 +5,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { CATEGORIES, type StoryCategory } from '@engine/index';
 import { AppText, BigButton, CategoryTile, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
+import { useStoryWarmUp } from '@/hooks/useStoryWarmUp';
 import { colors, spacing } from '@/theme';
 
 /** 3. Home — pick a category, then who chooses the story. */
 export default function HomeScreen() {
   const { profile } = useChildProfile();
+  useStoryWarmUp();
   const [category, setCategory] = useState<StoryCategory | null>(null);
 
   const footer = category ? (

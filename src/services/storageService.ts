@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { ChildProfile, GoshtiStory, Subscription } from '@/types/models';
 
+import type { PreparedPool } from './storyPrefetcher';
+
 /**
  * Local persistence. Today: AsyncStorage on device.
  * Later: a Supabase-backed implementation of the same interface.
@@ -22,6 +24,10 @@ export interface StorageService {
   /** "YYYY-MM" the usage counter belongs to. */
   getUsageMonth(): Promise<string | null>;
   saveUsageMonth(month: string): Promise<void>;
+
+  /** Random stories prepared in advance (see storyPrefetcher). */
+  getPreparedStories(): Promise<PreparedPool>;
+  savePreparedStories(pool: PreparedPool): Promise<void>;
 }
 
 const KEYS = {
@@ -30,6 +36,7 @@ const KEYS = {
   favourites: 'goshti.favourites.v1',
   subscription: 'goshti.subscription.v1',
   usageMonth: 'goshti.usageMonth.v1',
+  prepared: 'goshti.preparedStories.v1',
 } as const;
 
 async function readJson<T>(key: string): Promise<T | null> {
@@ -83,5 +90,12 @@ export class AsyncStorageService implements StorageService {
   }
   saveUsageMonth(month: string) {
     return AsyncStorage.setItem(KEYS.usageMonth, month);
+  }
+
+  async getPreparedStories() {
+    return (await readJson<PreparedPool>(KEYS.prepared)) ?? {};
+  }
+  savePreparedStories(pool: PreparedPool) {
+    return writeJson(KEYS.prepared, pool);
   }
 }

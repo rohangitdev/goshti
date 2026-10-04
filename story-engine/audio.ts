@@ -1,95 +1,151 @@
-import { NARRATOR_EMOTIONS, VOICE_STYLES, type NarratorEmotion, type RawAudioScript, type VoiceStyle } from './schemas';
+/**
+ * Audio script assembly.
+ *
+ * The approved story is split into paragraphs, narration and quoted dialogue BY CODE
+ * (`segmentStory`). The audio director model only returns directions keyed by paragraph /
+ * quote number (`AudioDirection`). `buildAudioScript` merges them — so the spoken text is
+ * always exactly the approved text, and unapproved sounds can never get through.
+ */
+import { NARRATOR_EMOTIONS, VOICE_STYLES, type AudioDirection, type NarratorEmotion } from './schemas';
 import { isAllowedMusicMood, isAllowedSfx, type SfxId } from './sfx';
 import type { AudioScript, AudioSegment } from './types';
 
 export const PAUSE_LIMITS = { min: 200, max: 4000 };
-/** The audio script must carry (almost) all of the approved story's words. */
-export const COVERAGE_LIMITS = { min: 0.85, max: 1.25 };
 /** Sound design restraint: max SFX per minute of story. */
 export const MAX_SFX_PER_MINUTE = 3;
+/** Default gap between paragraphs when the director adds none. */
+export const PARAGRAPH_GAP_MS = 600;
 
 const emotionSet = new Set<string>(NARRATOR_EMOTIONS);
 const voiceSet = new Set<string>(VOICE_STYLES);
 
-function letters(text: string): number {
-  return (text.match(/\p{L}|\p{M}/gu) ?? []).length;
+// ---------------------------------------------------------------------------
+// Segmentation
+// ---------------------------------------------------------------------------
+
+export type StoryPart = { kind: 'narration'; text: string } | { kind: 'quote'; quote: number; text: string };
+export interface StoryParagraph {
+  paragraph: number;
+  parts: StoryPart[];
 }
 
-export function audioScriptToText(script: AudioScript): string {
-  return script.segments
-    .map((s) => (s.type === 'NARRATION' || s.type === 'DIALOGUE' ? s.text : null))
-    .filter((t): t is string => !!t)
+const QUOTE_RE = /["“”„«»]([^"“”„«»]+)["“”„«»]/g;
+
+/** Paragraphs are numbered from 1, quotes from 1 across the whole story. */
+export function segmentStory(storyText: string): StoryParagraph[] {
+  const paragraphs = storyText.split(/\n\s*\n|\n/).map((p) => p.trim()).filter(Boolean);
+  let quote = 0;
+  return paragraphs.map((para, i) => {
+    const parts: StoryPart[] = [];
+    let last = 0;
+    for (const match of para.matchAll(QUOTE_RE)) {
+      const before = para.slice(last, match.index).trim();
+      if (before) parts.push({ kind: 'narration', text: before });
+      quote += 1;
+      parts.push({ kind: 'quote', quote, text: match[1].trim() });
+      last = (match.index ?? 0) + match[0].length;
+    }
+    const rest = para.slice(last).trim();
+    if (rest) parts.push({ kind: 'narration', text: rest });
+    return { paragraph: i + 1, parts };
+  });
+}
+
+/** The story as the audio director sees it: [P1] … «Q1: "…"» … */
+export function markedStory(storyText: string): string {
+  return segmentStory(storyText)
+    .map((p) => `[P${p.paragraph}] ` + p.parts.map((x) => (x.kind === 'quote' ? `«Q${x.quote}: "${x.text}"»` : x.text)).join(' '))
     .join('\n');
 }
 
-export function coverageRatio(script: AudioScript, storyText: string): number {
-  const storyLetters = letters(storyText);
-  return storyLetters === 0 ? 0 : letters(audioScriptToText(script)) / storyLetters;
+// ---------------------------------------------------------------------------
+// Assembly
+// ---------------------------------------------------------------------------
+
+export interface BuildOptions {
+  estimatedMinutes?: number;
+  /** Used only when the direction has no ambience at all (mock / fallback). */
+  ambience?: SfxId;
+  closingEmotion?: NarratorEmotion;
 }
 
-/**
- * Turns untrusted model output into a strict AudioScript.
- * Unknown sounds/moods are DROPPED (never passed through), pauses are clamped,
- * empty speech removed, SFX density limited.
- */
-export function normalizeAudioScript(
-  raw: RawAudioScript,
-  storyText: string,
-  estimatedMinutes: number,
-): { script: AudioScript; warnings: string[] } {
-  const warnings: string[] = [];
-  const segments: AudioSegment[] = [];
-  let sfxCount = 0;
-  const maxSfx = Math.max(2, Math.round(estimatedMinutes * MAX_SFX_PER_MINUTE));
+const EMPTY_DIRECTION: AudioDirection = { speakers: [], narration: [], cues: [] };
 
-  raw.segments.forEach((s, i) => {
-    const emotion = s.emotion && emotionSet.has(s.emotion) ? (s.emotion as NarratorEmotion) : undefined;
-    switch (s.type) {
-      case 'NARRATION': {
-        const text = s.text?.trim();
-        if (!text) return void warnings.push(`segment ${i}: empty narration dropped`);
-        segments.push({ type: 'NARRATION', speaker: 'AAJI', text, ...(emotion && { emotion }) });
-        return;
+export function buildAudioScript(
+  storyText: string,
+  direction: AudioDirection | null,
+  options: BuildOptions = {},
+): { script: AudioScript; warnings: string[] } {
+  const d = direction ?? EMPTY_DIRECTION;
+  const warnings: string[] = [];
+  const paragraphs = segmentStory(storyText);
+  const maxSfx = Math.max(2, Math.round((options.estimatedMinutes ?? 3) * MAX_SFX_PER_MINUTE));
+  let sfxCount = 0;
+
+  const speakers = new Map(d.speakers.map((s) => [s.quote, s]));
+  const narrationEmotion = new Map(
+    d.narration.filter((n) => emotionSet.has(n.emotion)).map((n) => [n.paragraph, n.emotion as NarratorEmotion]),
+  );
+
+  // Validate cues once; unknown sounds/moods are dropped, never passed through.
+  const cuesAfter = new Map<number, AudioSegment[]>();
+  d.cues.forEach((c, i) => {
+    let seg: AudioSegment | null = null;
+    if (c.type === 'PAUSE') {
+      const ms = Math.round(Math.min(PAUSE_LIMITS.max, Math.max(PAUSE_LIMITS.min, Number(c.durationMs) || 800)));
+      seg = { type: 'PAUSE', durationMs: ms };
+    } else if (c.type === 'SFX') {
+      if (!isAllowedSfx(c.soundId)) warnings.push(`cue ${i}: SFX "${c.soundId}" not approved — dropped`);
+      else if (sfxCount >= maxSfx) warnings.push(`cue ${i}: too many SFX — dropped`);
+      else {
+        sfxCount += 1;
+        seg = { type: 'SFX', soundId: c.soundId };
       }
-      case 'DIALOGUE': {
-        const text = s.text?.trim();
-        if (!text) return void warnings.push(`segment ${i}: empty dialogue dropped`);
-        const voiceStyle = s.voiceStyle && voiceSet.has(s.voiceStyle) ? (s.voiceStyle as VoiceStyle) : undefined;
+    } else if (c.type === 'AMBIENCE') {
+      if (!isAllowedSfx(c.soundId)) warnings.push(`cue ${i}: ambience "${c.soundId}" not approved — dropped`);
+      else seg = { type: 'AMBIENCE', soundId: c.soundId, action: c.action ?? 'START' };
+    } else if (c.type === 'MUSIC_CUE') {
+      if (!isAllowedMusicMood(c.mood)) warnings.push(`cue ${i}: music mood "${c.mood}" not approved — dropped`);
+      else seg = { type: 'MUSIC_CUE', mood: c.mood, action: c.action ?? 'START' };
+    }
+    if (!seg) return;
+    const at = Math.max(0, Math.min(paragraphs.length, Math.round(c.afterParagraph)));
+    cuesAfter.set(at, [...(cuesAfter.get(at) ?? []), seg]);
+  });
+
+  const segments: AudioSegment[] = [];
+  const hasAmbience = [...cuesAfter.values()].flat().some((s) => s.type === 'AMBIENCE');
+  if (options.ambience && !hasAmbience) segments.push({ type: 'AMBIENCE', soundId: options.ambience, action: 'START' });
+  segments.push(...(cuesAfter.get(0) ?? []));
+
+  let emotion: NarratorEmotion | undefined;
+  for (const p of paragraphs) {
+    emotion = narrationEmotion.get(p.paragraph) ?? emotion;
+    if (p.paragraph === paragraphs.length && options.closingEmotion && !narrationEmotion.has(p.paragraph)) {
+      emotion = options.closingEmotion;
+    }
+    for (const part of p.parts) {
+      if (part.kind === 'narration') {
+        segments.push({ type: 'NARRATION', speaker: 'AAJI', text: part.text, ...(emotion && { emotion }) });
+      } else {
+        const sp = speakers.get(part.quote);
+        const voiceStyle = sp && voiceSet.has(sp.voiceStyle) ? sp.voiceStyle : undefined;
+        const qEmotion = sp?.emotion && emotionSet.has(sp.emotion) ? sp.emotion : undefined;
         segments.push({
           type: 'DIALOGUE',
-          character: s.character?.trim() || 'पात्र',
-          text,
-          ...(emotion && { emotion }),
+          character: sp?.character?.trim() || 'पात्र',
+          text: part.text,
+          ...(qEmotion && { emotion: qEmotion }),
           ...(voiceStyle && { voiceStyle }),
         });
-        return;
-      }
-      case 'PAUSE': {
-        const ms = Math.round(Math.min(PAUSE_LIMITS.max, Math.max(PAUSE_LIMITS.min, Number(s.durationMs) || 800)));
-        segments.push({ type: 'PAUSE', durationMs: ms });
-        return;
-      }
-      case 'SFX': {
-        if (!isAllowedSfx(s.soundId)) return void warnings.push(`segment ${i}: SFX "${s.soundId}" not approved — dropped`);
-        if (sfxCount >= maxSfx) return void warnings.push(`segment ${i}: too many SFX — dropped`);
-        sfxCount += 1;
-        segments.push({ type: 'SFX', soundId: s.soundId });
-        return;
-      }
-      case 'AMBIENCE': {
-        if (!isAllowedSfx(s.soundId)) {
-          return void warnings.push(`segment ${i}: ambience "${s.soundId}" not approved — dropped`);
-        }
-        segments.push({ type: 'AMBIENCE', soundId: s.soundId, action: s.action ?? 'START' });
-        return;
-      }
-      case 'MUSIC_CUE': {
-        if (!isAllowedMusicMood(s.mood)) return void warnings.push(`segment ${i}: music mood "${s.mood}" not approved — dropped`);
-        segments.push({ type: 'MUSIC_CUE', mood: s.mood, action: s.action ?? 'START' });
-        return;
       }
     }
-  });
+    const cues = cuesAfter.get(p.paragraph) ?? [];
+    segments.push(...cues);
+    const last = p.paragraph === paragraphs.length;
+    if (!last && !cues.some((s) => s.type === 'PAUSE')) segments.push({ type: 'PAUSE', durationMs: PARAGRAPH_GAP_MS });
+  }
+  if (options.ambience && !hasAmbience) segments.push({ type: 'AMBIENCE', soundId: options.ambience, action: 'STOP' });
 
   // Never leave ambience or music running at the end.
   const open = new Map<string, AudioSegment>();
@@ -108,57 +164,38 @@ export function normalizeAudioScript(
     if (seg.type === 'MUSIC_CUE') segments.push({ type: 'MUSIC_CUE', mood: seg.mood, action: 'STOP' });
   }
 
-  const script: AudioScript = { version: 2, narrator: 'AAJI', language: 'mr-IN', segments };
-  const ratio = coverageRatio(script, storyText);
-  if (ratio < COVERAGE_LIMITS.min || ratio > COVERAGE_LIMITS.max) {
-    warnings.push(`coverage ${(ratio * 100).toFixed(0)}% of story text`);
-  }
-  return { script, warnings };
+  const quotes = paragraphs.flatMap((p) => p.parts).filter((x) => x.kind === 'quote').length;
+  if (direction && d.speakers.length < quotes) warnings.push(`${quotes - d.speakers.length} quote(s) without a speaker`);
+
+  return { script: { version: 2, narrator: 'AAJI', language: 'mr-IN', segments }, warnings };
 }
 
-export function isCoverageAcceptable(script: AudioScript, storyText: string): boolean {
-  const r = coverageRatio(script, storyText);
-  return r >= COVERAGE_LIMITS.min && r <= COVERAGE_LIMITS.max;
-}
-
-const QUOTE_RE = /(["“”„«»])([^"“”„«»]+)(["“”„«»])/g;
-
-/**
- * Deterministic conversion used when the audio director's output is unusable
- * (and by the mock provider). Paragraph → narration; quoted speech → dialogue.
- */
+/** Deterministic script with no AI direction (fallback and mock). */
 export function buildFallbackAudioScript(
   storyText: string,
   options: { ambience?: SfxId; closingEmotion?: NarratorEmotion } = {},
 ): AudioScript {
-  const segments: AudioSegment[] = [];
-  if (options.ambience) segments.push({ type: 'AMBIENCE', soundId: options.ambience, action: 'START' });
+  return buildAudioScript(storyText, null, options).script;
+}
 
-  const paragraphs = storyText.split(/\n\s*\n|\n/).map((p) => p.trim()).filter(Boolean);
-  paragraphs.forEach((para, pi) => {
-    let last = 0;
-    for (const match of para.matchAll(QUOTE_RE)) {
-      const before = para.slice(last, match.index).trim();
-      if (before) segments.push({ type: 'NARRATION', speaker: 'AAJI', text: before });
-      segments.push({ type: 'DIALOGUE', character: 'पात्र', text: match[2].trim() });
-      last = (match.index ?? 0) + match[0].length;
-    }
-    const rest = para.slice(last).trim();
-    if (rest) segments.push({ type: 'NARRATION', speaker: 'AAJI', text: rest });
-    if (pi < paragraphs.length - 1) segments.push({ type: 'PAUSE', durationMs: 700 });
-  });
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-  if (options.closingEmotion) {
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const s = segments[i];
-      if (s.type === 'NARRATION') {
-        segments[i] = { ...s, emotion: options.closingEmotion };
-        break;
-      }
-    }
-  }
-  if (options.ambience) segments.push({ type: 'AMBIENCE', soundId: options.ambience, action: 'STOP' });
-  return { version: 2, narrator: 'AAJI', language: 'mr-IN', segments };
+function letters(text: string): number {
+  return (text.match(/\p{L}|\p{M}/gu) ?? []).length;
+}
+
+export function audioScriptToText(script: AudioScript): string {
+  return script.segments
+    .map((s) => (s.type === 'NARRATION' || s.type === 'DIALOGUE' ? s.text : null))
+    .filter((t): t is string => !!t)
+    .join('\n');
+}
+
+export function coverageRatio(script: AudioScript, storyText: string): number {
+  const storyLetters = letters(storyText);
+  return storyLetters === 0 ? 0 : letters(audioScriptToText(script)) / storyLetters;
 }
 
 /** Rough listening time (Aaji narrates slowly). */

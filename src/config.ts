@@ -34,4 +34,10 @@ export const config = {
   storyBackend: resolveStoryBackend(),
   /** Whole story across all backend steps (real Gemini stories can take a few minutes). */
   storyRequestTimeoutMs: 400_000,
+  /**
+   * Prepare the next random story in the background so it plays instantly.
+   * Costs extra AI calls (on Gemini's free tier the daily quota is small) —
+   * set EXPO_PUBLIC_PREFETCH_STORIES=false to turn off.
+   */
+  prefetchRandomStories: process.env.EXPO_PUBLIC_PREFETCH_STORIES !== 'false',
 };

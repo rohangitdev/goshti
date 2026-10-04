@@ -1,5 +1,5 @@
 import type { DevelopmentalProfile } from './profiles';
-import type { IntentResult, RawAudioScript, StoryEvaluation, StoryPlan, StoryRequest, WrittenStory } from './schemas';
+import type { AudioDirection, IntentResult, StoryEvaluation, StoryPlan, StoryRequest, WrittenStory } from './schemas';
 import type { VarietyIngredients } from './variety';
 
 export interface PlanInput {
@@ -49,13 +49,16 @@ export interface StoryAIProvider {
   generateStory(input: WriteInput): Promise<WrittenStory>;
   evaluateStory(input: EvaluateInput): Promise<StoryEvaluation>;
   rewriteStory(input: RewriteInput): Promise<WrittenStory>;
-  createAudioScript(input: AudioScriptInput): Promise<RawAudioScript>;
+  /** Returns DIRECTIONS only (speakers, emotions, cues) — the text comes from the approved story. */
+  createAudioScript(input: AudioScriptInput): Promise<AudioDirection>;
 }
 
 export type ProviderErrorCode =
   | 'NOT_CONFIGURED'
   | 'RATE_LIMITED'
   | 'OVERLOADED'
+  /** Daily/plan quota used up on every configured model — retrying won't help today. */
+  | 'QUOTA_EXHAUSTED'
   | 'BLOCKED'
   | 'MALFORMED_OUTPUT'
   | 'HTTP_ERROR'

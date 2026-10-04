@@ -52,6 +52,7 @@ src/                  ← Expo app (screens, hooks, services)
 
 ## Configuration
 
-See `.env.example`. Backend: `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-3.8-flash`),
+See `.env.example`. Backend: `GEMINI_API_KEY`, `GEMINI_MODEL` (default `gemini-3.5-flash`), `GEMINI_FALLBACK_MODEL` (comma list),
+`GEMINI_THINKING`,
 optional `GEMINI_WRITER_MODEL`, `GEMINI_CRITIC_MODEL`, `STORY_LOG`, `STORY_DEBUG`.
 App (public): `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, optional `EXPO_PUBLIC_STORY_API_URL`.

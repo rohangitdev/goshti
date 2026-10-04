@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ProviderError } from '../provider';
-import { extractJson, GeminiProvider } from '../providers/gemini';
+import { extractJson, GeminiProvider, isQuotaExhausted, parseRetryDelayMs } from '../providers/gemini';
 import { resolveProfile } from '../profiles';
 import type { StoryRequest } from '../schemas';
 import { samplePlan } from './fixtures';
@@ -123,6 +123,49 @@ describe('GeminiProvider', () => {
     const p = new GeminiProvider({ apiKey: 'k', model: 'main', fallbackModel: 'none', retryDelaysMs: [0], fetchImpl: impl });
     await expect(p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan })).rejects.toBeInstanceOf(ProviderError);
     expect(requests.every((r) => r.url.includes('/models/main:'))).toBe(true);
+  });
+
+  it('recognises daily quota errors', () => {
+    const daily = 'You exceeded your current quota ... metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20 Please retry in 13h52m16.019s.';
+    expect(parseRetryDelayMs(daily)).toBe(((13 * 60 + 52) * 60 + 16.019) * 1000);
+    expect(isQuotaExhausted(daily)).toBe(true);
+    expect(isQuotaExhausted('Resource exhausted. Please retry in 12s.')).toBe(false);
+  });
+
+  it('skips a model with exhausted daily quota immediately (no retries) and uses the next one', async () => {
+    const quota = { status: 429, body: { error: { message: 'You exceeded your current quota. Quota exceeded for metric: free_tier_requests. Please retry in 13h1m2s.' } } };
+    const { impl, requests } = fakeFetch([quota, { body: geminiResponse('{"title":"अ","storyText":"ब"}') }]);
+    const p = new GeminiProvider({ apiKey: 'k', model: 'quota-model-a', fallbackModel: 'next-model-a', retryDelaysMs: [5000, 5000], fetchImpl: impl });
+    const t0 = Date.now();
+    await p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan });
+    expect(Date.now() - t0).toBeLessThan(1000);
+    expect(requests.map((r) => r.url.split('/models/')[1].split(':')[0])).toEqual(['quota-model-a', 'next-model-a']);
+
+    // A later call goes straight to the next model (quota remembered).
+    const second = fakeFetch([{ body: geminiResponse('{"title":"क","storyText":"ख"}') }]);
+    const p2 = new GeminiProvider({ apiKey: 'k', model: 'quota-model-a', fallbackModel: 'next-model-a', fetchImpl: second.impl });
+    await p2.generateStory({ request, profile: resolveProfile(6), plan: samplePlan });
+    expect(second.requests[0].url).toContain('/models/next-model-a:');
+  });
+
+  it('reports QUOTA_EXHAUSTED when every model is out of quota', async () => {
+    const quota = { status: 429, body: { error: { message: 'Quota exceeded for metric: free_tier_requests. Please retry in 5h.' } } };
+    const { impl } = fakeFetch([quota, quota, quota]);
+    const p = new GeminiProvider({ apiKey: 'k', model: 'quota-model-b', fallbackModel: 'quota-model-c', fetchImpl: impl });
+    await expect(p.generateStory({ request, profile: resolveProfile(6), plan: samplePlan })).rejects.toMatchObject({
+      code: 'QUOTA_EXHAUSTED',
+    });
+  });
+
+  it('sends per-stage thinking levels and drops them if the model rejects them', async () => {
+    const { impl, requests } = fakeFetch([
+      { status: 400, body: { error: { message: 'thinking_level is not supported for this model' } } },
+      { body: geminiResponse('{"intent":"STORY_REQUEST","reason":"x"}') },
+    ]);
+    const p = new GeminiProvider({ apiKey: 'k', fetchImpl: impl });
+    await p.classifyIntent({ idea: 'x', request });
+    expect((requests[0].body.generationConfig as Record<string, unknown>).thinkingConfig).toEqual({ thinkingLevel: 'low' });
+    expect((requests[1].body.generationConfig as Record<string, unknown>).thinkingConfig).toBeUndefined();
   });
 
   it('allows per-role model overrides', () => {

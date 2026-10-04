@@ -1,10 +1,11 @@
-import { estimateDurationSeconds, type StoryRequest } from '@engine/index';
+import { estimateDurationSeconds, type ApprovedStory, type ChildAge, type StoryRequest } from '@engine/index';
 
 import { createId } from '@/utils/id';
 import type { GoshtiStory, StoryRating } from '@/types/models';
 
 import type { StorageService } from './storageService';
 import type { ProgressListener, StoryGenerator } from './storyGenerator';
+import type { RandomStoryPrefetcher } from './storyPrefetcher';
 import type { SubscriptionService } from './subscriptionService';
 import type { TtsService } from './ttsService';
 
@@ -23,6 +24,8 @@ export interface StoryService {
   rateStory(id: string, rating: StoryRating): Promise<void>;
   isFavourite(id: string): Promise<boolean>;
   toggleFavourite(id: string): Promise<boolean>;
+  /** Quietly prepare the next random story for the child's most recent category. */
+  warmUp(): Promise<void>;
 }
 
 export class StoryLimitReachedError extends Error {
@@ -47,6 +50,8 @@ interface Deps {
   tts: TtsService;
   storage: StorageService;
   subscription: SubscriptionService;
+  /** Prepares RANDOM stories ahead of time. Optional. */
+  prefetcher?: RandomStoryPrefetcher;
   /** Artificial delay so the "Aaji is preparing" screen is visible with instant mock stories. */
   minimumLatencyMs?: number;
 }
@@ -70,14 +75,47 @@ export class DefaultStoryService implements StoryService {
     const recent = (await this.deps.storage.getStories()).slice(0, 8).map((s) => s.title);
     const request: StoryRequest = { ...input, avoidTitles: recent };
 
-    const minimum = this.deps.generator.kind === 'mock' ? (this.deps.minimumLatencyMs ?? 0) : 0;
-    const [outcome] = await Promise.all([this.build(this.deps.generator, request, new Date(), onProgress), wait(minimum)]);
+    // A story prepared in advance plays (almost) instantly.
+    const prepared =
+      request.mode === 'RANDOM' ? await this.deps.prefetcher?.take(request.category, request.age as ChildAge) : null;
+
+    const instant = prepared || this.deps.generator.kind === 'mock';
+    const minimum = instant ? (this.deps.minimumLatencyMs ?? 0) : 0;
+    const [outcome] = await Promise.all([
+      prepared
+        ? this.fromApproved(prepared, new Date())
+        : this.build(this.deps.generator, request, new Date(), onProgress),
+      wait(minimum),
+    ]);
     if (outcome.status === 'DECLINED') return outcome;
 
     await this.deps.storage.saveStory(outcome.story);
     // Only approved, delivered stories count towards the monthly allowance.
     await this.deps.subscription.recordStoryGenerated();
+
+    if (request.mode === 'RANDOM') {
+      this.deps.prefetcher?.prepare({
+        category: request.category,
+        age: request.age as ChildAge,
+        childName: request.childName,
+        avoidTitles: [outcome.story.title, ...recent],
+      });
+    }
     return outcome;
+  }
+
+  async warmUp(): Promise<void> {
+    if (!this.deps.prefetcher) return;
+    const [profile, stories] = await Promise.all([this.deps.storage.getChildProfile(), this.deps.storage.getStories()]);
+    if (!profile) return;
+    const category = stories[0]?.category;
+    if (!category) return;
+    this.deps.prefetcher.prepare({
+      category,
+      age: profile.age,
+      childName: profile.name,
+      avoidTitles: stories.slice(0, 8).map((s) => s.title),
+    });
   }
 
   async listStories(): Promise<GoshtiStory[]> {
@@ -126,7 +164,10 @@ export class DefaultStoryService implements StoryService {
     if (result.status === 'FAILED') throw new StoryGenerationError(result.reason);
     if (result.status !== 'APPROVED') return { status: 'DECLINED', message: result.message };
 
-    const approved = result.story;
+    return this.fromApproved(result.story, createdAt);
+  }
+
+  private async fromApproved(approved: ApprovedStory, createdAt: Date): Promise<CreateStoryOutcome> {
     const audio = await this.deps.tts.synthesize(approved.audioScript);
     return {
       status: 'CREATED',

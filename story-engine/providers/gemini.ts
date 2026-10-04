@@ -30,7 +30,7 @@ import {
 } from '../provider';
 import {
   IntentResultSchema,
-  RawAudioScriptSchema,
+  AudioDirectionSchema,
   StoryEvaluationSchema,
   StoryPlanSchema,
   toModelJsonSchema,
@@ -39,11 +39,49 @@ import {
   type StoryRequest,
 } from '../schemas';
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
-/** Used when the main model is overloaded. Set GEMINI_FALLBACK_MODEL=none to disable. */
-export const DEFAULT_FALLBACK_MODEL = 'gemini-3.5-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+/**
+ * Tried in order when the main model is overloaded or its quota is used up
+ * (free tier: each model has its own small daily request allowance).
+ * GEMINI_FALLBACK_MODEL accepts a comma-separated list; "none" disables.
+ */
+export const DEFAULT_FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+
+/**
+ * Models whose DAILY quota is used up, until when. Module-level, so a warm Edge Function
+ * worker skips them on later requests instead of wasting a call.
+ */
+const exhaustedUntil = new Map<string, number>();
+
+/** "Please retry in 13h52m16s" / "retry in 42.5s" → milliseconds. */
+export function parseRetryDelayMs(message: string): number | null {
+  const m = /retry in\s+(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?/i.exec(message);
+  if (!m || (!m[1] && !m[2] && !m[3])) return null;
+  return ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000;
+}
+
+/** A 429 that won't clear within this request: daily/plan quota rather than a burst limit. */
+export function isQuotaExhausted(message: string): boolean {
+  const delay = parseRetryDelayMs(message);
+  return /quota/i.test(message) && (delay === null || delay > 60_000 || /per[_ ]?day|free_tier_requests/i.test(message));
+}
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
+
+/**
+ * Hidden "thinking" before answering costs a lot of time. Structured, mechanical stages
+ * think little; the writer and critic — where quality is decided — think more.
+ */
+export const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
+  classifyIntent: 'low',
+  createPlan: 'low',
+  generateStory: 'medium',
+  evaluateStory: 'medium',
+  rewriteStory: 'medium',
+  createAudioScript: 'low',
+};
+
 /** Waits between retries when Google reports high demand / rate limits. */
-export const DEFAULT_RETRY_DELAYS_MS = [2000, 5000, 10000];
+export const DEFAULT_RETRY_DELAYS_MS = [1500, 4000];
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export interface GeminiConfig {
@@ -55,6 +93,11 @@ export interface GeminiConfig {
   criticModel?: string;
   /** Model to switch to when the configured one is overloaded (GEMINI_FALLBACK_MODEL). "none" disables. */
   fallbackModel?: string;
+  /**
+   * GEMINI_THINKING: one level for every stage ("low", "medium", …), or "auto" to let the
+   * model decide (slowest). Unset = DEFAULT_THINKING per stage.
+   */
+  thinking?: ThinkingLevel | 'auto';
   /** Delays between retries on overload / rate limit. */
   retryDelaysMs?: number[];
   /** Per-call timeout. */
@@ -116,6 +159,7 @@ export class GeminiProvider implements StoryAIProvider {
   readonly models: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
   private schemaSupported = true;
+  private thinkingSupported = true;
   /** Model that actually answered each stage last (differs from `models` after a fallback). */
   private readonly lastUsed: Record<string, string> = {};
 
@@ -139,9 +183,19 @@ export class GeminiProvider implements StoryAIProvider {
     return this.lastUsed[stage] ?? this.models[stage];
   }
 
-  private get fallbackModel(): string | null {
-    const f = this.config.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
-    return !f || f === 'none' ? null : f;
+  private get fallbackModels(): string[] {
+    const f = this.config.fallbackModel;
+    if (f === 'none') return [];
+    if (!f) return DEFAULT_FALLBACK_MODELS;
+    return f.split(',').map((m) => m.trim()).filter(Boolean);
+  }
+
+  /** Main model first, then fallbacks; models with exhausted quota are skipped. */
+  private candidates(primary: string): string[] {
+    const now = Date.now();
+    const list = [primary, ...this.fallbackModels.filter((m) => m !== primary)];
+    const usable = list.filter((m) => (exhaustedUntil.get(m) ?? 0) <= now);
+    return usable.length ? usable : [primary];
   }
 
   async classifyIntent(input: { idea: string; request: StoryRequest }): Promise<IntentResult> {
@@ -218,9 +272,9 @@ export class GeminiProvider implements StoryAIProvider {
       model: this.models.createAudioScript,
       system: AUDIO_SCRIPT_SYSTEM_PROMPT,
       user: buildAudioScriptUserPrompt(input),
-      schema: RawAudioScriptSchema,
+      schema: AudioDirectionSchema,
       temperature: 0.3,
-      maxOutputTokens: 32768,
+      maxOutputTokens: 8192,
     });
   }
 
@@ -263,6 +317,10 @@ export class GeminiProvider implements StoryAIProvider {
       responseMimeType: 'application/json',
     };
     if (this.schemaSupported) generationConfig.responseJsonSchema = toModelJsonSchema(spec.schema);
+    const thinking = this.config.thinking ?? DEFAULT_THINKING[spec.stage];
+    if (this.thinkingSupported && thinking && thinking !== 'auto') {
+      generationConfig.thinkingConfig = { thinkingLevel: thinking };
+    }
 
     const body = {
       systemInstruction: { parts: [{ text: spec.system }] },
@@ -272,9 +330,11 @@ export class GeminiProvider implements StoryAIProvider {
     };
 
     const delays = this.config.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
-    let model = spec.model;
+    const models = this.candidates(spec.model);
+    let index = 0;
+    let model = models[0];
     let retry = 0;
-    let switched = false;
+    const tried: string[] = [];
 
     for (;;) {
       const remaining = (this.config.deadlineAt ?? Number.POSITIVE_INFINITY) - Date.now() - 2000;
@@ -301,34 +361,48 @@ export class GeminiProvider implements StoryAIProvider {
       if (!res.ok) {
         const message = json.error?.message ?? `HTTP ${res.status}`;
         // Older/other models may reject responseJsonSchema — fall back to prompt-only JSON.
-        if (res.status === 400 && this.schemaSupported && /schema/i.test(message)) {
+        if (res.status === 400 && this.schemaSupported && /schema/i.test(message) && !/thinking/i.test(message)) {
           this.schemaSupported = false;
           delete generationConfig.responseJsonSchema;
           continue;
         }
-        const overloaded = res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504;
-        if (overloaded) {
-          const fitsInRequest = Date.now() + (delays[retry] ?? 0) + 20_000 < (this.config.deadlineAt ?? Number.POSITIVE_INFINITY);
-          if (retry < delays.length && fitsInRequest) {
+        // Models without thinking levels reject thinkingConfig — drop it and continue.
+        if (res.status === 400 && this.thinkingSupported && /thinking/i.test(message)) {
+          this.thinkingSupported = false;
+          delete generationConfig.thinkingConfig;
+          continue;
+        }
+
+        const quotaGone = res.status === 429 && isQuotaExhausted(message);
+        const busy = !quotaGone && [429, 500, 502, 503, 504].includes(res.status);
+        if (!quotaGone && !busy) throw new ProviderError('HTTP_ERROR', message, spec.stage);
+
+        if (quotaGone) {
+          // Retrying is pointless for hours — remember it and move to the next model now.
+          exhaustedUntil.set(model, Date.now() + (parseRetryDelayMs(message) ?? 60 * 60 * 1000));
+          tried.push(`${model}: daily quota used up`);
+        } else {
+          const fits = Date.now() + (delays[retry] ?? 0) + 20_000 < (this.config.deadlineAt ?? Number.POSITIVE_INFINITY);
+          if (retry < delays.length && fits) {
             await sleep(delays[retry]);
             retry += 1;
             continue;
           }
-          // Still busy: try the fallback model once (with a fresh, shorter retry budget).
-          const fallback = this.fallbackModel;
-          if (!switched && fallback && fallback !== model && fitsInRequest) {
-            model = fallback;
-            switched = true;
-            retry = Math.max(0, delays.length - 1);
-            continue;
-          }
-          throw new ProviderError(
-            res.status === 429 ? 'RATE_LIMITED' : 'OVERLOADED',
-            `${message} (model ${model}, after ${retry} retries${switched ? ' incl. fallback' : ''})`,
-            spec.stage,
-          );
+          tried.push(`${model}: busy`);
         }
-        throw new ProviderError('HTTP_ERROR', message, spec.stage);
+
+        if (index + 1 < models.length) {
+          index += 1;
+          model = models[index];
+          retry = Math.max(0, delays.length - 1); // one quick retry on the next model
+          continue;
+        }
+        const allQuota = tried.every((t) => t.endsWith('quota used up'));
+        throw new ProviderError(
+          allQuota ? 'QUOTA_EXHAUSTED' : res.status === 429 ? 'RATE_LIMITED' : 'OVERLOADED',
+          `${allQuota ? 'Gemini daily quota used up for all configured models' : 'Gemini is busy'} (${tried.join('; ')}). ${message.slice(0, 300)}`,
+          spec.stage,
+        );
       }
       this.lastUsed[spec.stage] = model;
 
