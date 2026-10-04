@@ -192,9 +192,10 @@ export const StoryEvaluationSchema = z.object({
   listenerVerdict: z
     .string()
     .describe('Would a Marathi-speaking child of THIS age listen to the end and want another story? Why / why not?'),
-  strengths: z.array(z.string()),
-  weaknesses: z.array(z.string()),
-  rewriteInstructions: z.array(z.string()),
+  // Short lists keep the critic fast (output length dominates its latency).
+  strengths: z.array(z.string()).max(6),
+  weaknesses: z.array(z.string()).max(6),
+  rewriteInstructions: z.array(z.string()).max(6),
 });
 export type StoryEvaluation = z.infer<typeof StoryEvaluationSchema>;
 

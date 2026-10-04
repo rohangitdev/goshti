@@ -250,7 +250,7 @@ export class GeminiProvider implements StoryAIProvider {
       user: buildCriticUserPrompt(input),
       schema: StoryEvaluationSchema,
       temperature: 0.2,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 6144,
     });
   }
 

@@ -93,6 +93,11 @@ For weaknesses, be specific: quote or point to the exact part.
 
 rewriteInstructions must describe concrete improvements rather than vague statements such as "make it better".
 
+Be brief — judge thoroughly, write little:
+- listenerVerdict: at most 2 sentences.
+- strengths, weaknesses, rewriteInstructions: at most 4 items each, one short sentence per item.
+- If the story clearly deserves approval, rewriteInstructions may be empty.
+
 ${JSON_ONLY}`;
 
 export function buildCriticUserPrompt(input: EvaluateInput): string {
