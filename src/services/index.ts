@@ -3,12 +3,12 @@
  * Replace a Mock or Local class here (cloud TTS, expo-audio, Supabase data, RevenueCat)
  * without touching any screen.
  */
-import { setAudioModeAsync } from 'expo-audio';
 import { Platform } from 'react-native';
 
 import { config } from '@/config';
 
 import { LayeredStoryAudioService, StorySoundscape } from './audioMixerService';
+import { prepareStoryAudio } from './audioSession';
 import type { AudioService } from './audioService';
 import { ClipAudioService } from './clipAudioService';
 import { ExpoVoiceFileStore } from './expoVoiceFiles';
@@ -34,7 +34,7 @@ const storyGenerator: StoryGenerator =
     : new LocalMockGenerator();
 
 export const storageService: StorageService = new AsyncStorageService();
-export const subscriptionService: SubscriptionService = new LocalSubscriptionService(storageService);
+export const subscriptionService: SubscriptionService = new LocalSubscriptionService(storageService, config.defaultPlan);
 export const ttsService: TtsService = new MockTtsService();
 
 // Aaji's real voice (rendered on the backend, saved on the phone). Native only; needs a backend.
@@ -54,11 +54,15 @@ const soundPlayers = new ExpoSoundPlayerFactory();
 // Story audio: GOSHTI signature → Aaji's voice (or the phone's voice as a fallback), with the
 // story's sound effects, ambience and music mixed underneath at age-appropriate levels.
 export const audioService: AudioService = new LayeredStoryAudioService(
-  new SmartAudioService(voiceService ? new ClipAudioService(voiceService) : null, new SpeechAudioService(), voiceService),
+  new SmartAudioService(
+    voiceService ? new ClipAudioService(voiceService, { lockScreen: Platform.OS === 'android' }) : null,
+    new SpeechAudioService(),
+    voiceService,
+  ),
   new StorySoundscape({ catalog: bundledSounds, players: soundPlayers }),
   // Stories (signature included) play even with the iPhone silent switch on; UI sounds before
   // the first story still respect it.
-  { signature: true, beforePlay: () => setAudioModeAsync({ playsInSilentMode: true }) },
+  { signature: true, beforePlay: prepareStoryAudio },
 );
 
 // Restrained interface sounds — screens ask by meaning, never by file.

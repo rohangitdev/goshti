@@ -7,7 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rohanshukla.goshti",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +20,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.rohanshukla.goshti"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -24,7 +29,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": true
+        }
+      ]
     ],
     "scheme": "goshti",
     "experiments": {

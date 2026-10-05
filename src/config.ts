@@ -40,4 +40,9 @@ export const config = {
    * set EXPO_PUBLIC_PREFETCH_STORIES=false to turn off.
    */
   prefetchRandomStories: process.env.EXPO_PUBLIC_PREFETCH_STORIES !== 'false',
+  /**
+   * Plan a fresh install starts on. Test builds use PLUS (30 a month) so testers don't hit the
+   * FREE limit of 5; the store build uses FREE. Set by eas.json (EXPO_PUBLIC_DEFAULT_PLAN).
+   */
+  defaultPlan: (process.env.EXPO_PUBLIC_DEFAULT_PLAN === 'PLUS' ? 'PLUS' : 'FREE') as 'FREE' | 'PLUS',
 };

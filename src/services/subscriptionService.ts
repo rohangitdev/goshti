@@ -54,11 +54,15 @@ function currentMonth(now = new Date()): string {
 }
 
 export class LocalSubscriptionService implements SubscriptionService {
-  constructor(private readonly storage: StorageService) {}
+  constructor(
+    private readonly storage: StorageService,
+    /** Plan for a fresh install (test builds start on PLUS). */
+    private readonly defaultPlan: PlanId = 'FREE',
+  ) {}
 
   async getSubscription(): Promise<Subscription> {
     const stored = await this.storage.getSubscription();
-    const plan = stored?.plan ?? 'FREE';
+    const plan = stored?.plan ?? this.defaultPlan;
     let subscription: Subscription = {
       plan,
       monthlyLimit: PLANS[plan].monthlyLimit,

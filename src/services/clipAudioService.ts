@@ -2,12 +2,13 @@
  * Plays Aaji's rendered voice: the story's audio parts in order, with the pauses between
  * them, waiting for parts that are still being rendered. Uses expo-audio (works in Expo Go).
  */
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 
 import { buildTtsChunks } from '@engine/index';
 import type { GoshtiStory } from '@/types/models';
 
 import type { AudioService, PlaybackListener, PlaybackStatus, SoundCue } from './audioService';
+import { prepareStoryAudio } from './audioSession';
 import type { VoiceService, VoiceState } from './voiceService';
 
 const IDLE: PlaybackStatus = { storyId: null, isPlaying: false, positionSeconds: 0, durationSeconds: 0, didFinish: false };
@@ -37,12 +38,19 @@ export class ClipAudioService implements AudioService {
   /** Called when Aaji's voice can't be played (render failed) — the caller switches to the phone voice. */
   onUnavailable: (() => void) | null = null;
 
-  constructor(private readonly voice: VoiceService) {}
+  private title = '';
+
+  constructor(
+    private readonly voice: VoiceService,
+    /** Android: show lock-screen controls, which keeps playback alive in the background. */
+    private readonly options: { lockScreen?: boolean } = {},
+  ) {}
 
   async load(story: GoshtiStory) {
     await this.unload();
     this.state = await this.voice.get(story.id);
     this.fallbackDuration = story.durationSeconds;
+    this.title = story.title;
     this.index = 0;
     this.retried = false;
     this.partCues = cuePlan(story, this.state?.totalChunks);
@@ -59,7 +67,7 @@ export class ClipAudioService implements AudioService {
   async play() {
     if (!this.status.storyId) return;
     if (!this.audioModeSet) {
-      await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+      await prepareStoryAudio();
       this.audioModeSet = true;
     }
     this.wantPlaying = true;
@@ -96,6 +104,7 @@ export class ClipAudioService implements AudioService {
     this.partCues = null;
     this.unsubscribeVoice?.();
     this.unsubscribeVoice = null;
+    if (this.options.lockScreen) this.player?.setActiveForLockScreen?.(false);
     this.player?.remove();
     this.player = null;
     this.playerPart = -1;
@@ -143,7 +152,8 @@ export class ClipAudioService implements AudioService {
       return;
     }
     if (!this.player) {
-      this.player = createAudioPlayer({ uri: part.uri });
+      this.player = createAudioPlayer({ uri: part.uri }, { keepAudioSessionActive: true });
+      if (this.options.lockScreen) this.player.setActiveForLockScreen?.(true, { title: this.title, artist: 'गोष्टी' });
       this.player.addListener('playbackStatusUpdate', (s) => {
         if (s.didJustFinish) this.onPartEnded();
       });

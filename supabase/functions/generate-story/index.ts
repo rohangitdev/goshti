@@ -11,6 +11,7 @@
 //   GEMINI_FALLBACK_MODEL   used when the main model is overloaded (default gemini-3.5-flash-lite, "none" = off)
 //   GEMINI_THINKING  minimal|low|medium|high|auto for all stages (default: per stage)
 //   STORY_DEBUG=false   stop returning the developer trace
+//   STORY_DEBUG_TOKEN   only callers sending this token get the trace (QA runner); the app never does
 //   STORY_LOG=off|summary|full
 //   TTS_VOICE        Aaji's voice (default Sulafat); TTS_MODEL (default gemini-3.8-flash-tts)
 //
@@ -27,6 +28,7 @@ const ENV_KEYS = [
   'GEMINI_FALLBACK_MODEL',
   'GEMINI_THINKING',
   'STORY_DEBUG',
+  'STORY_DEBUG_TOKEN',
   'STORY_LOG',
   'STORY_TIME_BUDGET_MS',
   'STORY_REQUEST_DEADLINE_MS',

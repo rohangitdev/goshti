@@ -177,7 +177,7 @@ interface RunResult {
 async function runCase(b: Backend, c: Case, previousTitles: string[]): Promise<RunResult> {
   const t0 = Date.now();
   const request = c.suite === 'repetition' && previousTitles.length ? { ...c.request, avoidTitles: previousTitles.slice(-12) } : c.request;
-  let payload: Json = { request, debug: true };
+  let payload: Json = { request, debug: true, debugToken: process.env.STORY_DEBUG_TOKEN };
   let steps = 0;
   for (;;) {
     steps += 1;
@@ -189,7 +189,7 @@ async function runCase(b: Backend, c: Case, previousTitles: string[]): Promise<R
     }
     const body = r.body;
     if (body.status === 'IN_PROGRESS' && typeof body.continuation === 'string' && steps < 25) {
-      payload = { continuation: body.continuation, debug: true };
+      payload = { continuation: body.continuation, debug: true, debugToken: process.env.STORY_DEBUG_TOKEN };
       continue;
     }
     return {

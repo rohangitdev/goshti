@@ -27,6 +27,8 @@ export interface BackendEnv extends TtsEnv {
   GEMINI_FALLBACK_MODEL?: string;
   /** minimal | low | medium | high | auto — one thinking level for all stages (default: per stage). */
   GEMINI_THINKING?: string;
+  /** When set, the developer trace is only returned to requests carrying this token. */
+  STORY_DEBUG_TOKEN?: string;
   /** "false" stops the backend returning the developer trace. */
   STORY_DEBUG?: string;
   /** off | summary | full */
@@ -111,6 +113,7 @@ export async function handleGenerateStory(
     request?: unknown;
     continuation?: unknown;
     debug?: unknown;
+    debugToken?: unknown;
   };
   const deadlineAt = now() + (num(env.STORY_REQUEST_DEADLINE_MS, 135_000));
   const { provider, note } = createProvider(env, deadlineAt);
@@ -142,7 +145,12 @@ export async function handleGenerateStory(
     });
   }
 
-  const includeTrace = payload.debug === true && env.STORY_DEBUG !== 'false';
+  // Developer trace: only on request, never when STORY_DEBUG=false, and — when a STORY_DEBUG_TOKEN
+  // is configured (Supabase) — only for callers that send it (the QA runner), never for the app.
+  const includeTrace =
+    payload.debug === true &&
+    env.STORY_DEBUG !== 'false' &&
+    (!env.STORY_DEBUG_TOKEN || payload.debugToken === env.STORY_DEBUG_TOKEN);
   const providerInfo = { name: provider.name, models: provider.models, ...(note && { note }) };
 
   if (result.status === 'IN_PROGRESS') {
