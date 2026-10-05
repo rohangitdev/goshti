@@ -37,6 +37,12 @@ const WAITING_SONG_LEVEL = 0.45;
 /** After the song: a quiet instrumental loop until the story is ready. */
 const WAITING_LOOP_LEVEL = 0.22;
 const LOOP_FADE_IN_MS = 1500;
+/** During a long wait: a sung line over the loop, first after this long… */
+const FIRST_LINE_AFTER_MS = 8000;
+/** …then this long after each line ends (so roughly every 20 s). */
+const LINE_GAP_MS = 12000;
+/** The loop dips a little while a line is sung. */
+const LOOP_UNDER_LINE_LEVEL = 0.14;
 
 /** Ignore a repeat of the same sound within this window (double taps, re-renders). */
 const REPEAT_GUARD_MS = 400;
@@ -48,6 +54,10 @@ export class DefaultUiSoundService implements UiSoundService {
   private song: { handle: SoundHandle; fade: ReturnType<typeof setInterval> | null; level: number } | null = null;
   /** Bumped by stopWaitingSong so a start still awaiting settings never begins late. */
   private songToken = 0;
+  private line: { handle: SoundHandle; fade: ReturnType<typeof setInterval> | null; level: number } | null = null;
+  private lineTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Rotates across waits too, so the child hears different lines each time. */
+  private nextLine = 0;
 
   constructor(
     private readonly deps: {
@@ -125,13 +135,58 @@ export class DefaultUiSoundService implements UiSoundService {
         handle.setVolume(WAITING_LOOP_LEVEL * Math.min(1, i / steps));
         if (i >= steps) clearInterval(rise);
       }, 50);
+      this.scheduleLine(token, FIRST_LINE_AFTER_MS);
     } catch {
       this.song = null;
     }
   }
 
+  private scheduleLine(token: number, delayMs: number) {
+    const lines = this.deps.catalog.waitingLines();
+    if (!lines.length) return;
+    this.lineTimer = setTimeout(() => {
+      this.lineTimer = null;
+      const loop = this.song;
+      if (token !== this.songToken || !loop || loop.fade) return;
+      try {
+        const source = lines[this.nextLine % lines.length];
+        this.nextLine += 1;
+        const handle = this.deps.players.create(source, { volume: WAITING_SONG_LEVEL });
+        const line = { handle, fade: null as ReturnType<typeof setInterval> | null, level: WAITING_SONG_LEVEL };
+        this.line = line;
+        loop.handle.setVolume(LOOP_UNDER_LINE_LEVEL);
+        handle.onEnd(() => {
+          handle.release();
+          if (this.line === line) this.line = null;
+          if (token !== this.songToken || this.song !== loop || loop.fade) return;
+          loop.handle.setVolume(WAITING_LOOP_LEVEL);
+          this.scheduleLine(token, LINE_GAP_MS);
+        });
+        handle.play();
+      } catch {
+        this.line = null;
+      }
+    }, delayMs);
+  }
+
   stopWaitingSong(fadeMs = 800): boolean {
     this.songToken += 1;
+    if (this.lineTimer) clearTimeout(this.lineTimer);
+    this.lineTimer = null;
+    const line = this.line;
+    if (line && !line.fade) {
+      const steps = Math.max(1, Math.round(fadeMs / 50));
+      let j = 0;
+      line.fade = setInterval(() => {
+        j += 1;
+        line.handle.setVolume(line.level * (1 - j / steps));
+        if (j >= steps) {
+          if (line.fade) clearInterval(line.fade);
+          line.handle.release();
+          if (this.line === line) this.line = null;
+        }
+      }, 50);
+    }
     const song = this.song;
     if (!song) return false;
     if (song.fade) return true; // already fading out

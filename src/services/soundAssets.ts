@@ -22,6 +22,8 @@ export interface SoundCatalog {
   waitingSong(): SoundSource | null;
   /** Quiet instrumental loop that follows the song if the story still isn't ready. */
   waitingLoop(): SoundSource | null;
+  /** Short sung lines (same voice) heard over the loop during a long wait, in rotation. */
+  waitingLines(): SoundSource[];
   /** One-shot effect or ambience bed for an approved id. */
   sfx(id: SfxId): SoundSource | null;
   music(mood: MusicMood): SoundSource | null;
@@ -39,6 +41,12 @@ const UI: Record<UiSoundId, SoundSource> = {
 const SIGNATURE: SoundSource = require('../../assets/audio/signature/goshti-signature.wav');
 const WAITING_SONG: SoundSource = require('../../assets/audio/signature/goshti-waiting-song.m4a');
 const WAITING_LOOP: SoundSource = require('../../assets/audio/signature/goshti-waiting-loop.wav');
+const WAITING_LINES: SoundSource[] = [
+  require('../../assets/audio/signature/goshti-waiting-line-1.m4a'),
+  require('../../assets/audio/signature/goshti-waiting-line-2.m4a'),
+  require('../../assets/audio/signature/goshti-waiting-line-3.m4a'),
+  require('../../assets/audio/signature/goshti-waiting-line-4.m4a'),
+];
 
 const SFX: Record<SfxId, SoundSource | null> = {
   BIRDS: require('../../assets/audio/sfx/birds.wav'),
@@ -89,6 +97,7 @@ export const bundledSounds: SoundCatalog = {
   signature: () => SIGNATURE,
   waitingSong: () => WAITING_SONG,
   waitingLoop: () => WAITING_LOOP,
+  waitingLines: () => WAITING_LINES,
   sfx: (id) => SFX[id] ?? null,
   music: (mood) => MUSIC[mood] ?? null,
 };

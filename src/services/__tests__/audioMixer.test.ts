@@ -64,6 +64,7 @@ const catalog: SoundCatalog = {
   signature: () => src('signature'),
   waitingSong: () => src('waiting-song'),
   waitingLoop: () => src('waiting-loop'),
+  waitingLines: () => [src('line-1'), src('line-2'), src('line-3')],
   sfx: (id) => (id === 'LION' ? null : src(`sfx:${id}`)),
   music: (mood) => src(`music:${mood}`),
 };
@@ -372,6 +373,42 @@ describe('waiting song', () => {
     expect(ui.stopWaitingSong(800)).toBe(true);
     vi.advanceTimersByTime(900);
     expect(loop.released).toBe(true);
+  });
+
+  it('during a long wait, sung lines rotate over the loop (loop dips), and everything fades when ready', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    await ui.startWaitingSong();
+    players.live('waiting-song')[0].end();
+    const [loop] = players.live('waiting-loop');
+    vi.advanceTimersByTime(8100);
+    const [l1] = players.live('line-1');
+    expect(l1).toBeDefined();
+    expect(loop.volume).toBeLessThan(0.2);
+    l1.end();
+    expect(loop.volume).toBeCloseTo(0.22);
+    vi.advanceTimersByTime(12100);
+    const [l2] = players.live('line-2');
+    expect(l2).toBeDefined();
+    expect(ui.stopWaitingSong(800)).toBe(true);
+    vi.advanceTimersByTime(900);
+    expect(l2.released).toBe(true);
+    expect(loop.released).toBe(true);
+    vi.advanceTimersByTime(60000);
+    expect(players.live('line-3')).toHaveLength(0); // nothing after the story opened
+  });
+
+  it('the next wait continues the rotation with a different line', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    for (const expected of ['line-1', 'line-2']) {
+      await ui.startWaitingSong();
+      players.live('waiting-song')[0].end();
+      vi.advanceTimersByTime(8100);
+      expect(players.live(expected)).toHaveLength(1);
+      ui.stopWaitingSong(100);
+      vi.advanceTimersByTime(200);
+    }
   });
 
   it('no loop starts if the story was ready while the song was fading', async () => {
