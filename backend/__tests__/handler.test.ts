@@ -20,6 +20,16 @@ describe('backend handler', () => {
     expect((await handleGenerateStory({ ...req, debug: true }, { STORY_DEBUG: 'false' }, quiet)).body.trace).toBeUndefined();
   });
 
+  it('with STORY_DEBUG_TOKEN set, only callers sending the token get the trace (the app never does)', async () => {
+    const request = { age: 5, category: 'animals', mode: 'RANDOM' };
+    const env = { STORY_DEBUG_TOKEN: 'qa-secret' };
+    const quiet = { logger: { log: () => {} } };
+    const app = await handleGenerateStory({ request, debug: true }, env, quiet);
+    const qa = await handleGenerateStory({ request, debug: true, debugToken: 'qa-secret' }, env, quiet);
+    expect('trace' in app.body).toBe(false);
+    expect('trace' in qa.body).toBe(true);
+  });
+
   it('rejects invalid requests with 400', async () => {
     const r = await handleGenerateStory({ request: { age: 1, category: 'bedtime', mode: 'RANDOM' } }, {}, quiet);
     expect(r.status).toBe(400);

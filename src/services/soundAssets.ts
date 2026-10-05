@@ -50,23 +50,23 @@ const WAITING_LINES: SoundSource[] = [
 
 const SFX: Record<SfxId, SoundSource | null> = {
   BIRDS: require('../../assets/audio/sfx/birds.wav'),
-  RAIN_LIGHT: null, // synthesized water sounded artificial — needs a real recording
-  RAIN_HEAVY: null,
+  RAIN_LIGHT: null, // rebuilt with a bubble model (assets) — off until approved by ear
+  RAIN_HEAVY: null, // new bubble-model version in assets — switch on after a listen
   WIND: require('../../assets/audio/sfx/wind.wav'),
   FOOTSTEPS: require('../../assets/audio/sfx/footsteps.wav'),
   FOOTSTEPS_RUNNING: require('../../assets/audio/sfx/footsteps_running.wav'),
   DOOR_KNOCK: require('../../assets/audio/sfx/door_knock.wav'),
   DOOR_OPEN: require('../../assets/audio/sfx/door_open.wav'),
-  CAT_MEOW: null,
-  DOG_BARK: null,
-  ELEPHANT: null,
-  LION: null,
+  CAT_MEOW: require('../../assets/audio/sfx/cat_meow.wav'),
+  DOG_BARK: require('../../assets/audio/sfx/dog_bark.wav'),
+  ELEPHANT: require('../../assets/audio/sfx/elephant.wav'),
+  LION: require('../../assets/audio/sfx/lion.wav'),
   OWL: require('../../assets/audio/sfx/owl.wav'),
   TRAIN: require('../../assets/audio/sfx/train.wav'),
   BELL: require('../../assets/audio/sfx/bell.wav'),
   THUNDER_GENTLE: require('../../assets/audio/sfx/thunder_gentle.wav'),
   MAGIC_SPARKLE: require('../../assets/audio/sfx/magic_sparkle.wav'),
-  SPLASH: null, // synthesized water sounded artificial — needs a real recording
+  SPLASH: null, // rebuilt with a bubble model (assets) — off until approved by ear
   BRANCH_SNAP: require('../../assets/audio/sfx/branch_snap.wav'),
   CLAP: require('../../assets/audio/sfx/clap.wav'),
   LAUGHTER: null,
@@ -74,8 +74,8 @@ const SFX: Record<SfxId, SoundSource | null> = {
   NIGHT_AMBIENCE: require('../../assets/audio/ambience/night_ambience.wav'),
   VILLAGE_AMBIENCE: require('../../assets/audio/ambience/village_ambience.wav'),
   CITY_AMBIENCE: require('../../assets/audio/ambience/city_ambience.wav'),
-  WATER_STREAM: null, // synthesized water sounded artificial — needs a real recording
-  WAVES: null, // synthesized water sounded artificial — needs a real recording
+  WATER_STREAM: null, // rebuilt with a bubble model (assets) — off until approved by ear
+  WAVES: null, // rebuilt with a bubble model (assets) — off until approved by ear
   CLOCK_TICK: require('../../assets/audio/sfx/clock_tick.wav'),
   OBJECT_DROP: require('../../assets/audio/sfx/object_drop.wav'),
   WHOOSH_SOFT: require('../../assets/audio/sfx/whoosh_soft.wav'),

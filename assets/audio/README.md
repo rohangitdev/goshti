@@ -32,15 +32,15 @@ Before launch, replace them with professionally designed or properly licensed so
 same file names. Do **not** use sounds taken from other children's audio albums, films, YouTube
 or unlicensed libraries. The signature must be an original GOSHTI composition.
 
-## Approved ids with no placeholder yet
+## Status of the approved ids
 
-These need real, licensed recordings (synthesizing them convincingly isn't possible). Until a file is
-added and registered in `src/services/soundAssets.ts`, the player silently skips them:
-
-`CAT_MEOW`, `DOG_BARK`, `ELEPHANT`, `LION`, `LAUGHTER`, `RAIN_HEAVY`
-
-Generated but **switched off** (the synthesized water sounded artificial): `WATER_STREAM`, `WAVES`,
-`RAIN_LIGHT`, `SPLASH`. The files remain for reference; register real recordings to turn them back on.
+- **Animals** (`CAT_MEOW`, `DOG_BARK`, `ELEPHANT`, `LION`): source-filter synthesis — a pitched
+  voice through moving vocal-tract resonances (`scripts/audio/better_sfx.py`). On. The lion is a
+  soft growl, deliberately not scary.
+- **Water** (`WATER_STREAM`, `WAVES`, `RAIN_LIGHT`, `RAIN_HEAVY`, `SPLASH`): rebuilt with a physical
+  bubble model (water sounds are mostly many tiny resonating bubbles). **Off until approved by ear** —
+  the first synthesized water sounded artificial.
+- `LAUGHTER`: none — synthesized laughter sounds wrong; record a real giggle (with permission) later.
 
 ## How often sounds play
 
