@@ -104,7 +104,7 @@ export class ClipAudioService implements AudioService {
     this.partCues = null;
     this.unsubscribeVoice?.();
     this.unsubscribeVoice = null;
-    if (this.options.lockScreen) this.player?.setActiveForLockScreen?.(false);
+    this.setLockScreen(false);
     this.player?.remove();
     this.player = null;
     this.playerPart = -1;
@@ -153,7 +153,7 @@ export class ClipAudioService implements AudioService {
     }
     if (!this.player) {
       this.player = createAudioPlayer({ uri: part.uri }, { keepAudioSessionActive: true });
-      if (this.options.lockScreen) this.player.setActiveForLockScreen?.(true, { title: this.title, artist: 'गोष्टी' });
+      this.setLockScreen(true);
       this.player.addListener('playbackStatusUpdate', (s) => {
         if (s.didJustFinish) this.onPartEnded();
       });
@@ -183,6 +183,20 @@ export class ClipAudioService implements AudioService {
       this.gapTimer = null;
       this.startCurrent();
     }, finished?.pauseAfterMs ?? 0);
+  }
+
+  /**
+   * Android lock-screen controls keep the story playing in the background. Never let them break
+   * playback (e.g. in Expo Go, which may not support them) — the story just plays without.
+   */
+  private setLockScreen(active: boolean) {
+    if (!this.options.lockScreen || !this.player) return;
+    try {
+      if (active) this.player.setActiveForLockScreen?.(true, { title: this.title, artist: 'गोष्टी' });
+      else this.player.setActiveForLockScreen?.(false);
+    } catch {
+      // ignore: background controls are optional
+    }
   }
 
   /** Schedules the current part's not-yet-played cues, relative to `fromSeconds` into the part. */

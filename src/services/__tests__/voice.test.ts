@@ -210,3 +210,23 @@ describe('SmartAudioService', () => {
     expect(speech2.plays).toBe(1);
   });
 });
+
+describe('Android lock-screen controls', () => {
+  it('a failing lock-screen call never stops the story from playing', async () => {
+    const { voice } = setup({ renderChunk: async () => ({ base64: wav1s, pauseAfterMs: 0 }) });
+    await voice.start('s-lock', { token: 't', totalChunks: 1 });
+    await tick(30);
+    const clip = new ClipAudioService(voice, { lockScreen: true });
+    const created: { played: string[] }[] = [];
+    const before = FakePlayer.instances.length;
+    await clip.load({ id: 's-lock', title: 'चाचणी', durationSeconds: 1 } as GoshtiStory);
+    // Make every player throw on setActiveForLockScreen.
+    (FakePlayer as unknown as { prototype: Record<string, unknown> }).prototype.setActiveForLockScreen = () => {
+      throw new Error('not supported in Expo Go');
+    };
+    await clip.play();
+    created.push(...FakePlayer.instances.slice(before));
+    expect(created[0]?.played.length).toBe(1);
+    expect(clip.getStatus().isPlaying).toBe(true);
+  });
+});
