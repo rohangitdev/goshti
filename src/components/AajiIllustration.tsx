@@ -1,36 +1,24 @@
 import { StyleSheet, View } from 'react-native';
 
 import { colors, radius } from '@/theme';
+import type { SceneId } from '@/utils/scene';
 
-import { AppText } from './AppText';
+import { AajiScene } from './AajiScene';
 
 interface Props {
-  /** "scene" = Aaji in her chair with children (Welcome). "portrait" = Aaji alone. */
+  /** "scene" = Aaji with two children listening (Welcome). "portrait" = Aaji alone. */
   variant?: 'scene' | 'portrait';
+  /** Height of the picture; width follows the scene's 13:10 shape (and never overflows). */
   size?: number;
+  /** Where Aaji is telling the story (defaults to her room). */
+  scene?: SceneId;
 }
 
-/**
- * PLACEHOLDER ARTWORK. Replace the inner content with the real illustration
- * (e.g. an <Image>) — keep the frame dimensions so layouts don't shift.
- */
-export function AajiIllustration({ variant = 'portrait', size = 220 }: Props) {
-  const scene = variant === 'scene';
+/** Aaji telling a story, in one of her scenes. Same frame everywhere so layouts stay stable. */
+export function AajiIllustration({ variant = 'portrait', size = 220, scene = 'room' }: Props) {
   return (
-    <View
-      accessible
-      accessibilityLabel={scene ? 'आजी खुर्चीत बसून मुलांना गोष्ट सांगते आहे' : 'आजी'}
-      style={[styles.frame, { width: scene ? size * 1.3 : size, height: size }]}
-    >
-      <View style={styles.lamp} />
-      <AppText style={{ fontSize: size * 0.38, lineHeight: size * 0.48 }}>👵🏽</AppText>
-      <AppText style={{ fontSize: size * 0.12, lineHeight: size * 0.16 }}>🪑</AppText>
-      {scene ? (
-        <View style={styles.children}>
-          <AppText style={{ fontSize: size * 0.16, lineHeight: size * 0.22 }}>🧒🏽</AppText>
-          <AppText style={{ fontSize: size * 0.16, lineHeight: size * 0.22 }}>👧🏽</AppText>
-        </View>
-      ) : null}
+    <View style={[styles.frame, { width: size * 1.3, maxWidth: '100%' }]}>
+      <AajiScene scene={scene} withChildren={variant === 'scene'} />
     </View>
   );
 }
@@ -38,23 +26,9 @@ export function AajiIllustration({ variant = 'portrait', size = 220 }: Props) {
 const styles = StyleSheet.create({
   frame: {
     alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceWarm,
+    aspectRatio: 1.3,
     borderRadius: radius.lg,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: colors.border,
     overflow: 'hidden',
+    backgroundColor: colors.surfaceWarm,
   },
-  lamp: {
-    position: 'absolute',
-    top: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: colors.accent,
-    opacity: 0.18,
-  },
-  children: { flexDirection: 'row', gap: 24, marginTop: 4 },
 });

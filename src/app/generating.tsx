@@ -7,6 +7,7 @@ import { AajiIllustration, AppText, BigButton, Screen } from '@/components';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
 import { uiSoundService } from '@/services';
 import { colors } from '@/theme';
+import { sceneFor } from '@/utils/scene';
 
 /** 5. Generating */
 export default function GeneratingScreen() {
@@ -115,7 +116,7 @@ export default function GeneratingScreen() {
   return (
     <Screen>
       <View style={styles.center}>
-        <AajiIllustration size={240} />
+        <AajiIllustration size={220} scene={sceneFor(isStoryCategory(params.category) ? params.category : undefined)} />
         <AppText variant="heading" center>
           आजी तुमची गोष्ट तयार करतेय...
         </AppText>

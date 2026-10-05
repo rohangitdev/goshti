@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { getCategory } from '@engine/index';
@@ -15,10 +16,13 @@ import {
 import { useStoryPlayer } from '@/hooks/useStoryPlayer';
 import { colors, spacing } from '@/theme';
 import { formatDuration } from '@/utils/format';
+import { sceneFor } from '@/utils/scene';
 
 /** 6. Story Player — audio first; the story text is intentionally not shown. */
 export default function StoryPlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  // Chosen when the story opens, so the picture never changes mid-story.
+  const [openedAt] = useState(() => new Date());
   const { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite, reaction, setReaction } =
     useStoryPlayer(id);
 
@@ -45,6 +49,7 @@ export default function StoryPlayerScreen() {
   }
 
   const category = getCategory(story.category);
+  const scene = sceneFor(story.category, openedAt);
 
   return (
     <Screen footer={<BigButton label="अजून एक गोष्ट" variant="secondary" onPress={() => router.dismissTo('/home')} />}>
@@ -60,7 +65,7 @@ export default function StoryPlayerScreen() {
       </View>
 
       <View style={styles.center}>
-        <AajiIllustration size={status.didFinish ? 140 : 220} />
+        <AajiIllustration size={status.didFinish ? 150 : 230} scene={scene} />
         <View style={styles.titleBlock}>
           <AppText variant="caption" muted center>
             {category.emoji} {category.label}
