@@ -20,6 +20,8 @@ export interface SoundCatalog {
   signature(): SoundSource | null;
   /** GOSHTI's waiting song (sung by the founder, child-voice processed) while a story is prepared. */
   waitingSong(): SoundSource | null;
+  /** Quiet instrumental loop that follows the song if the story still isn't ready. */
+  waitingLoop(): SoundSource | null;
   /** One-shot effect or ambience bed for an approved id. */
   sfx(id: SfxId): SoundSource | null;
   music(mood: MusicMood): SoundSource | null;
@@ -36,6 +38,7 @@ const UI: Record<UiSoundId, SoundSource> = {
 
 const SIGNATURE: SoundSource = require('../../assets/audio/signature/goshti-signature.wav');
 const WAITING_SONG: SoundSource = require('../../assets/audio/signature/goshti-waiting-song.m4a');
+const WAITING_LOOP: SoundSource = require('../../assets/audio/signature/goshti-waiting-loop.wav');
 
 const SFX: Record<SfxId, SoundSource | null> = {
   BIRDS: require('../../assets/audio/sfx/birds.wav'),
@@ -85,6 +88,7 @@ export const bundledSounds: SoundCatalog = {
   ui: (id) => UI[id] ?? null,
   signature: () => SIGNATURE,
   waitingSong: () => WAITING_SONG,
+  waitingLoop: () => WAITING_LOOP,
   sfx: (id) => SFX[id] ?? null,
   music: (mood) => MUSIC[mood] ?? null,
 };

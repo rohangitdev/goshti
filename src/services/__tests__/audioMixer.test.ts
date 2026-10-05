@@ -63,6 +63,7 @@ const catalog: SoundCatalog = {
   ui: (id) => src(`ui:${id}`),
   signature: () => src('signature'),
   waitingSong: () => src('waiting-song'),
+  waitingLoop: () => src('waiting-loop'),
   sfx: (id) => (id === 'LION' ? null : src(`sfx:${id}`)),
   music: (mood) => src(`music:${mood}`),
 };
@@ -356,6 +357,30 @@ describe('waiting song', () => {
     vi.advanceTimersByTime(900);
     expect(songs[0].released).toBe(true);
     expect(ui.stopWaitingSong()).toBe(false);
+  });
+
+  it('if the story is still not ready when the song ends, a quiet loop takes over until it is', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    await ui.startWaitingSong();
+    players.live('waiting-song')[0].end();
+    const [loop] = players.live('waiting-loop');
+    expect(loop.loop).toBe(true);
+    vi.advanceTimersByTime(2000);
+    expect(loop.volume).toBeGreaterThan(0);
+    expect(loop.volume).toBeLessThan(0.45); // quieter than the song
+    expect(ui.stopWaitingSong(800)).toBe(true);
+    vi.advanceTimersByTime(900);
+    expect(loop.released).toBe(true);
+  });
+
+  it('no loop starts if the story was ready while the song was fading', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    await ui.startWaitingSong();
+    ui.stopWaitingSong(800);
+    players.live('waiting-song')[0].end();
+    expect(players.live('waiting-loop')).toHaveLength(0);
   });
 
   it('never starts late if the story was ready before the song began', async () => {
