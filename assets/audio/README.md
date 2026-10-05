@@ -16,7 +16,9 @@ Aaji's narration always plays at full level; everything else sits underneath it.
 is ready; off with the parent "app sounds" switch). If the story takes longer than the song,
 `signature/goshti-waiting-loop.wav` — a quiet, seamless instrumental in the same key (no voice) —
 fades in and loops until the story is ready (`scripts/audio/waiting_loop.py`). Over the loop, one of four
-short sung lines (`signature/goshti-waiting-line-1…4.m4a`, same voice) plays about every 20 s, rotating. Original words and tune by Rohan Shukla, sung by
+short sung lines (`signature/goshti-waiting-line-1…4.m4a`, same voice) plays about every 20 s, rotating.
+Each line has its own accompaniment in the key it was sung in (`scripts/audio/line_accompaniment.py`),
+so the loop fades out while a line plays and returns afterwards. Original words and tune by Rohan Shukla, sung by
 him and processed into a young girl's voice, with a code-generated accompaniment — see
 `scripts/audio/README.md`. It is the one non-placeholder file here.
 

@@ -375,7 +375,7 @@ describe('waiting song', () => {
     expect(loop.released).toBe(true);
   });
 
-  it('during a long wait, sung lines rotate over the loop (loop dips), and everything fades when ready', async () => {
+  it('during a long wait, sung lines rotate (loop steps aside for each), and everything fades when ready', async () => {
     const players = new FakePlayers();
     const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
     await ui.startWaitingSong();
@@ -384,10 +384,12 @@ describe('waiting song', () => {
     vi.advanceTimersByTime(8100);
     const [l1] = players.live('line-1');
     expect(l1).toBeDefined();
-    expect(loop.volume).toBeLessThan(0.2);
+    vi.advanceTimersByTime(500);
+    expect(loop.volume).toBe(0); // the line has its own music; the loop steps aside
     l1.end();
+    vi.advanceTimersByTime(1300);
     expect(loop.volume).toBeCloseTo(0.22);
-    vi.advanceTimersByTime(12100);
+    vi.advanceTimersByTime(10800);
     const [l2] = players.live('line-2');
     expect(l2).toBeDefined();
     expect(ui.stopWaitingSong(800)).toBe(true);

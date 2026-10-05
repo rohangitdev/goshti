@@ -41,8 +41,8 @@ const LOOP_FADE_IN_MS = 1500;
 const FIRST_LINE_AFTER_MS = 8000;
 /** …then this long after each line ends (so roughly every 20 s). */
 const LINE_GAP_MS = 12000;
-/** The loop dips a little while a line is sung. */
-const LOOP_UNDER_LINE_LEVEL = 0.14;
+/** Each line carries its own music (in its own key), so the loop steps aside while it plays. */
+const LOOP_UNDER_LINE_LEVEL = 0;
 
 /** Ignore a repeat of the same sound within this window (double taps, re-renders). */
 const REPEAT_GUARD_MS = 400;
@@ -154,12 +154,12 @@ export class DefaultUiSoundService implements UiSoundService {
         const handle = this.deps.players.create(source, { volume: WAITING_SONG_LEVEL });
         const line = { handle, fade: null as ReturnType<typeof setInterval> | null, level: WAITING_SONG_LEVEL };
         this.line = line;
-        loop.handle.setVolume(LOOP_UNDER_LINE_LEVEL);
+        this.rampLoop(loop, LOOP_UNDER_LINE_LEVEL, 400);
         handle.onEnd(() => {
           handle.release();
           if (this.line === line) this.line = null;
           if (token !== this.songToken || this.song !== loop || loop.fade) return;
-          loop.handle.setVolume(WAITING_LOOP_LEVEL);
+          this.rampLoop(loop, WAITING_LOOP_LEVEL, 1200);
           this.scheduleLine(token, LINE_GAP_MS);
         });
         handle.play();
@@ -167,6 +167,30 @@ export class DefaultUiSoundService implements UiSoundService {
         this.line = null;
       }
     }, delayMs);
+  }
+
+  private loopRamp: ReturnType<typeof setInterval> | null = null;
+
+  /** Smoothly moves the loop's volume (it is the "song" slot while it plays). */
+  private rampLoop(loop: NonNullable<DefaultUiSoundService['song']>, to: number, ms: number) {
+    if (this.loopRamp) clearInterval(this.loopRamp);
+    const from = loop.level;
+    const steps = Math.max(1, Math.round(ms / 50));
+    let i = 0;
+    this.loopRamp = setInterval(() => {
+      i += 1;
+      if (this.song !== loop || loop.fade) {
+        if (this.loopRamp) clearInterval(this.loopRamp);
+        this.loopRamp = null;
+        return;
+      }
+      loop.level = from + ((to - from) * i) / steps;
+      loop.handle.setVolume(loop.level);
+      if (i >= steps && this.loopRamp) {
+        clearInterval(this.loopRamp);
+        this.loopRamp = null;
+      }
+    }, 50);
   }
 
   stopWaitingSong(fadeMs = 800): boolean {
