@@ -37,6 +37,9 @@ export interface SubscriptionService {
   recordStoryGenerated(): Promise<Subscription>;
   /** Placeholder — purchases are not implemented in the POC. */
   purchase(planId: PlanId, period: PlanPrice['period']): Promise<never>;
+  /** DEVELOPMENT ONLY (the Parent screen shows these in dev builds): reset usage / switch plan for testing. */
+  devResetUsage(): Promise<Subscription>;
+  devSetPlan(plan: PlanId): Promise<Subscription>;
 }
 
 export class PurchasesNotAvailableError extends Error {
@@ -86,5 +89,17 @@ export class LocalSubscriptionService implements SubscriptionService {
 
   async purchase(): Promise<never> {
     throw new PurchasesNotAvailableError();
+  }
+
+  async devResetUsage(): Promise<Subscription> {
+    const next = { ...(await this.getSubscription()), storiesGeneratedThisMonth: 0 };
+    await this.storage.saveSubscription(next);
+    return next;
+  }
+
+  async devSetPlan(plan: PlanId): Promise<Subscription> {
+    const next = { ...(await this.getSubscription()), plan, monthlyLimit: PLANS[plan].monthlyLimit };
+    await this.storage.saveSubscription(next);
+    return next;
   }
 }

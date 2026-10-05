@@ -8,6 +8,7 @@ import { useChildProfile } from '@/hooks/useChildProfile';
 import { useSubscription } from '@/hooks/useSubscription';
 import { feedbackService, PLANS, REACTIONS, subscriptionService, uiSoundService, type StoryReaction } from '@/services';
 import { colors, radius, spacing } from '@/theme';
+import type { Subscription } from '@/types/models';
 import { toMarathiDigits } from '@/utils/format';
 
 /** 8. Parent mode — behind a simple parent gate; the only place plans and prices appear. */
@@ -31,7 +32,10 @@ export default function ParentScreen() {
 
 function ParentSettings() {
   const { profile } = useChildProfile();
-  const subscription = useSubscription();
+  const loadedSubscription = useSubscription();
+  // Dev tools below can change the plan/usage; show their result immediately.
+  const [devSubscription, setDevSubscription] = useState<Subscription | null>(null);
+  const subscription = devSubscription ?? loadedSubscription;
   const [notice, setNotice] = useState<string | null>(null);
   const [appSounds, setAppSounds] = useState(true);
   const [feedback, setFeedback] = useState<Record<StoryReaction, number> | null>(null);
@@ -135,6 +139,25 @@ function ParentSettings() {
         दोन्ही प्लॅनमध्ये गोष्टींचा दर्जा आणि आजीचा आवाज सारखाच आहे; {BRAND.plusName} मध्ये फक्त नव्या गोष्टी जास्त मिळतात.
       </AppText>
 
+      {/* Developers only — never in a production build. For testing limits and plans. */}
+      {__DEV__ && subscription ? (
+        <View style={[styles.card, styles.devCard]}>
+          <AppText variant="caption" muted>
+            DEV ONLY (not in the real app)
+          </AppText>
+          <BigButton
+            variant="secondary"
+            label="Reset this month's count"
+            onPress={async () => setDevSubscription(await subscriptionService.devResetUsage())}
+          />
+          <BigButton
+            variant="secondary"
+            label={subscription.plan === 'PLUS' ? 'Switch to FREE (5)' : 'Switch to PLUS (30)'}
+            onPress={async () => setDevSubscription(await subscriptionService.devSetPlan(subscription.plan === 'PLUS' ? 'FREE' : 'PLUS'))}
+          />
+        </View>
+      ) : null}
+
       {subscription?.plan !== 'PLUS' ? (
         <View style={styles.actions}>
           <BigButton label="₹99 / महिना" onPress={() => upgrade('month')} />
@@ -157,5 +180,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   rowText: { flex: 1, gap: spacing.xs },
   feedbackRow: { flexDirection: 'row', gap: spacing.lg },
+  devCard: { borderWidth: 1, borderStyle: 'dashed', borderColor: colors.border },
   actions: { gap: spacing.md },
 });

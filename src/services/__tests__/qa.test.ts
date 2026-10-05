@@ -263,3 +263,14 @@ function wav(seconds: number): string {
   v.setUint32(28, 48000, true);
   return btoa(String.fromCharCode(...header) + '\0'.repeat(Math.round(48000 * seconds)));
 }
+
+describe('developer test tools (dev builds only)', () => {
+  it('can reset the monthly count and switch plans for testing', async () => {
+    const { subscription } = setup({ plan: 'FREE', monthlyLimit: 5, storiesGeneratedThisMonth: 5 });
+    expect(await subscription.canGenerateStory()).toBe(false);
+    await subscription.devResetUsage();
+    expect(await subscription.canGenerateStory()).toBe(true);
+    expect((await subscription.devSetPlan('PLUS')).monthlyLimit).toBe(30);
+    expect((await subscription.devSetPlan('FREE')).monthlyLimit).toBe(5);
+  });
+});
