@@ -32,9 +32,20 @@ export default function GeneratingScreen() {
     return () => clearTimeout(t);
   }, []);
 
+  // GOSHTI's waiting song while Aaji prepares the story (once, never looped).
+  const working = state.status === 'working';
+  useEffect(() => {
+    if (!working) return;
+    void uiSoundService.startWaitingSong();
+    return () => {
+      uiSoundService.stopWaitingSong();
+    };
+  }, [working]);
+
   useEffect(() => {
     if (state.status === 'done') {
-      uiSoundService.play('STORY_READY');
+      // The waiting song fades out as the story opens; the ready chime only plays without it.
+      if (!uiSoundService.stopWaitingSong()) uiSoundService.play('STORY_READY');
       router.replace({ pathname: '/story/[id]', params: { id: state.storyId } });
     }
   }, [state]);

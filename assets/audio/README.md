@@ -10,9 +10,16 @@
 
 Aaji's narration always plays at full level; everything else sits underneath it.
 
+## Waiting song
+
+`signature/goshti-waiting-song.m4a` plays once while Aaji prepares a story (fades out when the story
+is ready; off with the parent "app sounds" switch). Original words and tune by Rohan Shukla, sung by
+him and processed into a young girl's voice, with a code-generated accompaniment — see
+`scripts/audio/README.md`. It is the one non-placeholder file here.
+
 ## Licensing
 
-**Every file here is a PLACEHOLDER synthesized from code** by
+**Every other file here is a PLACEHOLDER synthesized from code** by
 `scripts/generate-placeholder-audio.mjs` (sine tones, plucked strings and filtered noise; no samples,
 no downloads). They are original and carry no third-party rights.
 

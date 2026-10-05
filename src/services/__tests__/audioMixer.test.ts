@@ -62,6 +62,7 @@ const src = (name: string): SoundSource => ({ uri: name });
 const catalog: SoundCatalog = {
   ui: (id) => src(`ui:${id}`),
   signature: () => src('signature'),
+  waitingSong: () => src('waiting-song'),
   sfx: (id) => (id === 'LION' ? null : src(`sfx:${id}`)),
   music: (mood) => src(`music:${mood}`),
 };
@@ -333,6 +334,45 @@ describe('UI sounds', () => {
     expect(await store.getSettings()).toEqual({ appSounds: false });
     const fresh = new DefaultUiSoundService({ catalog, players, settings: store });
     expect(await fresh.isEnabled()).toBe(false);
+  });
+});
+
+describe('waiting song', () => {
+  const store = () => {
+    let saved: AppSettings | null = null;
+    return { getSettings: async () => saved, saveSettings: async (s: AppSettings) => void (saved = s) };
+  };
+
+  it('plays once while a story is prepared and fades out when the story is ready', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    await ui.startWaitingSong();
+    await ui.startWaitingSong(); // re-render: no second copy
+    const songs = players.live('waiting-song');
+    expect(songs).toHaveLength(1);
+    expect(songs[0].loop).toBe(false);
+    expect(ui.stopWaitingSong(800)).toBe(true);
+    expect(ui.stopWaitingSong()).toBe(true); // still fading — counts as playing
+    vi.advanceTimersByTime(900);
+    expect(songs[0].released).toBe(true);
+    expect(ui.stopWaitingSong()).toBe(false);
+  });
+
+  it('never starts late if the story was ready before the song began', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    const starting = ui.startWaitingSong();
+    ui.stopWaitingSong();
+    await starting;
+    expect(players.live('waiting-song')).toHaveLength(0);
+  });
+
+  it('respects the parent "app sounds" switch', async () => {
+    const players = new FakePlayers();
+    const ui = new DefaultUiSoundService({ catalog, players, settings: store() });
+    await ui.setEnabled(false);
+    await ui.startWaitingSong();
+    expect(players.created).toHaveLength(0);
   });
 });
 

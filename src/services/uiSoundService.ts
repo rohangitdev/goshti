@@ -24,9 +24,16 @@ export interface SettingsStore {
 
 export interface UiSoundService {
   play(id: UiSoundId): void;
+  /** The GOSHTI waiting song, once, while a story is being prepared. */
+  startWaitingSong(): Promise<void>;
+  /** Fades the waiting song out. Returns true if it was still playing. */
+  stopWaitingSong(fadeMs?: number): boolean;
   isEnabled(): Promise<boolean>;
   setEnabled(enabled: boolean): Promise<void>;
 }
+
+/** The waiting song is softer than Aaji but clearly audible. */
+const WAITING_SONG_LEVEL = 0.45;
 
 /** Ignore a repeat of the same sound within this window (double taps, re-renders). */
 const REPEAT_GUARD_MS = 400;
@@ -35,6 +42,9 @@ export class DefaultUiSoundService implements UiSoundService {
   private enabled: boolean | null = null;
   private readonly lastPlayed = new Map<UiSoundId, number>();
   private current: SoundHandle | null = null;
+  private song: { handle: SoundHandle; fade: ReturnType<typeof setInterval> | null } | null = null;
+  /** Bumped by stopWaitingSong so a start still awaiting settings never begins late. */
+  private songToken = 0;
 
   constructor(
     private readonly deps: {
@@ -72,6 +82,44 @@ export class DefaultUiSoundService implements UiSoundService {
     } catch {
       return false; // a UI sound must never break the app
     }
+  }
+
+  async startWaitingSong(): Promise<void> {
+    if (this.song) return;
+    const token = ++this.songToken;
+    if (!(await this.isEnabled()) || token !== this.songToken) return;
+    const source = this.deps.catalog.waitingSong();
+    if (!source) return;
+    try {
+      const handle = this.deps.players.create(source, { volume: WAITING_SONG_LEVEL });
+      const song = { handle, fade: null as ReturnType<typeof setInterval> | null };
+      this.song = song;
+      handle.onEnd(() => this.releaseSong(song)); // plays once — never loops
+      handle.play();
+    } catch {
+      this.song = null;
+    }
+  }
+
+  stopWaitingSong(fadeMs = 800): boolean {
+    this.songToken += 1;
+    const song = this.song;
+    if (!song) return false;
+    if (song.fade) return true; // already fading out
+    const steps = Math.max(1, Math.round(fadeMs / 50));
+    let i = 0;
+    song.fade = setInterval(() => {
+      i += 1;
+      song.handle.setVolume(WAITING_SONG_LEVEL * (1 - i / steps));
+      if (i >= steps) this.releaseSong(song);
+    }, 50);
+    return true;
+  }
+
+  private releaseSong(song: NonNullable<DefaultUiSoundService['song']>) {
+    if (song.fade) clearInterval(song.fade);
+    song.handle.release();
+    if (this.song === song) this.song = null;
   }
 
   async isEnabled(): Promise<boolean> {
