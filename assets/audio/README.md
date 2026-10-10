@@ -38,8 +38,8 @@ or unlicensed libraries. The signature must be an original GOSHTI composition.
   voice through moving vocal-tract resonances (`scripts/audio/better_sfx.py`). On. The lion is a
   soft growl, deliberately not scary.
 - **Water** (`WATER_STREAM`, `WAVES`, `RAIN_LIGHT`, `RAIN_HEAVY`, `SPLASH`): rebuilt with a physical
-  bubble model (water sounds are mostly many tiny resonating bubbles). **Off until approved by ear** —
-  the first synthesized water sounded artificial.
+  bubble model (water sounds are mostly many tiny resonating bubbles). On — approved by ear
+  (the first synthesized water had sounded artificial).
 - `LAUGHTER`: none — synthesized laughter sounds wrong; record a real giggle (with permission) later.
 
 ## How often sounds play
