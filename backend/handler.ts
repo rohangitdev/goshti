@@ -1,7 +1,7 @@
 /**
  * Platform-neutral HTTP handler for story generation.
  * Used by BOTH the local dev server (Node) and the Supabase Edge Function (Deno),
- * so they behave identically. GEMINI_API_KEY only ever lives on this side.
+ * so they behave identically. Google credentials (Vertex AI) only ever live on this side.
  *
  * Protocol (one story = a few short requests, each well inside the 150 s limit):
  *   POST { request, debug? }        → 202 IN_PROGRESS { phase, continuation } | final result
@@ -10,14 +10,14 @@
  */
 import { createConsoleLogger, type LogLevel, type StoryLogger } from '../story-engine/logging';
 import { advancePipeline, startPipeline, type PipelinePhase, type StepResult } from '../story-engine/pipeline';
-import type { StoryAIProvider } from '../story-engine/provider';
+import { ProviderError, type StoryAIProvider } from '../story-engine/provider';
 import { GeminiProvider } from '../story-engine/providers/gemini';
+import { googleAccessFromEnv } from '../story-engine/providers/googleAccess';
 import { MockStoryAIProvider } from '../story-engine/providers/mock';
 import { openState, sealState } from './continuation';
-import { handleTts, isTtsAction, issueAudioToken, type TtsEnv } from './tts';
+import { backendSecret, handleTts, isTtsAction, issueAudioToken, type TtsEnv } from './tts';
 
 export interface BackendEnv extends TtsEnv {
-  GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   GEMINI_WRITER_MODEL?: string;
   GEMINI_CRITIC_MODEL?: string;
@@ -39,7 +39,7 @@ export interface BackendEnv extends TtsEnv {
   STORY_REQUEST_DEADLINE_MS?: string;
   /** Don't start another AI step in the same request after this long (default 20 s). */
   STORY_SLICE_MS?: string;
-  /** Optional secret for continuation tokens; derived from GEMINI_API_KEY if not set. */
+  /** Secret for continuation/audio tokens. Set it in production (otherwise derived from the Google credential). */
   STORY_STATE_SECRET?: string;
 }
 
@@ -64,11 +64,20 @@ export const PHASE_LABELS: Record<PipelinePhase, string> = {
   AUDIO: 'आजी गोष्ट सांगायला तयार होतेय...',
 };
 
+/**
+ * Vertex AI when GOOGLE_CLOUD_PROJECT is set (the app's route); an AI Studio key only for
+ * developer experiments; otherwise the mock provider. A half-configured Vertex setup throws.
+ */
 export function createProvider(env: BackendEnv, deadlineAt?: number): { provider: StoryAIProvider; note?: string } {
-  if (env.GEMINI_API_KEY) {
+  const access = googleAccessFromEnv(env);
+  if (access) {
     return {
+      note:
+        access.kind === 'ai-studio'
+          ? 'Using an AI Studio key — fine for developer experiments, not for the children’s app (use Vertex AI).'
+          : undefined,
       provider: new GeminiProvider({
-        apiKey: env.GEMINI_API_KEY,
+        access,
         model: env.GEMINI_MODEL,
         writerModel: env.GEMINI_WRITER_MODEL,
         criticModel: env.GEMINI_CRITIC_MODEL,
@@ -81,7 +90,7 @@ export function createProvider(env: BackendEnv, deadlineAt?: number): { provider
   }
   return {
     provider: new MockStoryAIProvider(),
-    note: 'GEMINI_API_KEY is not set — using the mock provider (template stories).',
+    note: 'No Gemini access configured (Vertex AI or GEMINI_API_KEY) — using the mock provider (template stories).',
   };
 }
 
@@ -116,9 +125,17 @@ export async function handleGenerateStory(
     debugToken?: unknown;
   };
   const deadlineAt = now() + (num(env.STORY_REQUEST_DEADLINE_MS, 135_000));
-  const { provider, note } = createProvider(env, deadlineAt);
+  let created: ReturnType<typeof createProvider>;
+  try {
+    created = createProvider(env, deadlineAt);
+  } catch (e) {
+    // Misconfigured credentials: fail clearly, never fall back to template stories.
+    const reason = e instanceof ProviderError ? `${e.code}: ${e.message}` : 'story service is not configured';
+    return { status: 503, body: { status: 'FAILED', reason } };
+  }
+  const { provider, note } = created;
   const logger = options.logger ?? createConsoleLogger((env.STORY_LOG as LogLevel) || 'summary');
-  const secret = env.STORY_STATE_SECRET || env.GEMINI_API_KEY || 'goshti-mock-provider';
+  const secret = backendSecret(env);
   const isMock = provider.name === 'mock';
 
   let result: StepResult;

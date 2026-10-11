@@ -3,8 +3,12 @@
 // The story engine is bundled into ./_bundle/handler.mjs by `npm run build:function`
 // (same code as the local dev server). Deploy with: npm run deploy:function
 //
-// Secrets (set with `npx supabase secrets set ...`, never in the app):
-//   GEMINI_API_KEY   required for real stories (mock stories without it)
+// Secrets (set with `npx supabase secrets set ...`, never in the app) — see docs/VERTEX_SETUP.md:
+//   GOOGLE_CLOUD_PROJECT          Google Cloud project → Gemini through Vertex AI (the app's route)
+//   GOOGLE_CLOUD_LOCATION         optional, default "global"
+//   GOOGLE_SERVICE_ACCOUNT_JSON   service-account key (JSON, or base64 of it); or VERTEX_API_KEY
+//   STORY_STATE_SECRET            secret for continuation/audio tokens (set it)
+//   GEMINI_API_KEY   AI Studio key — developer experiments only (its terms exclude children's apps)
 //   GEMINI_MODEL     optional, default gemini-3.5-flash
 //   GEMINI_WRITER_MODEL / GEMINI_CRITIC_MODEL   optional per-role overrides
 //   GEMINI_FAST_MODEL  classifier + audio direction (default gemini-3.5-flash-lite)
@@ -20,6 +24,10 @@
 import { CORS_HEADERS, handleGenerateStory } from './_bundle/handler.mjs';
 
 const ENV_KEYS = [
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_SERVICE_ACCOUNT_JSON',
+  'VERTEX_API_KEY',
   'GEMINI_API_KEY',
   'GEMINI_MODEL',
   'GEMINI_WRITER_MODEL',

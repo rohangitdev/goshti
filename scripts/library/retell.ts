@@ -1,16 +1,17 @@
 /**
  * Retell one traditional story with the real story engine, so you can read it before it goes
- * into the library. Runs on YOUR computer with GEMINI_API_KEY from .env (never in the app).
+ * into the library. Runs on YOUR computer with the Vertex AI settings from .env (never in the app).
  *
  *   npm run retell -- --list
  *   npm run retell -- --id tilak-shengachi-tarphale --age 6
  *
  * Writes library-drafts/<id>-age<N>.json (git-ignored) and prints the story and critic notes.
  */
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { createProvider, type BackendEnv } from '../../backend/handler';
+import { describeAi, loadLocalEnv } from '../../backend/localEnv';
 import { findRetelling, generateRetelling, RETELLINGS, resolveProfile, type ChildAge } from '../../story-engine';
 
 function arg(name: string): string | undefined {
@@ -19,7 +20,7 @@ function arg(name: string): string | undefined {
 }
 
 async function main() {
-  if (existsSync('.env')) process.loadEnvFile('.env');
+  loadLocalEnv('.env');
 
   if (process.argv.includes('--list')) {
     for (const r of RETELLINGS) console.log(`${r.status.padEnd(8)} ${r.id.padEnd(30)} ${r.ageBands.join(',').padEnd(16)} ${r.title}`);
@@ -37,7 +38,9 @@ async function main() {
   const age = Number(arg('age') ?? firstAge) as ChildAge;
   if (source.status !== 'APPROVED') console.log(`Note: "${source.id}" is still a DRAFT outline — fine for a test read.`);
 
-  const { provider, note } = createProvider(process.env as BackendEnv);
+  const env = process.env as BackendEnv;
+  console.log(`AI: ${describeAi(env)}`);
+  const { provider, note } = createProvider(env);
   if (note) console.log(note);
   console.log(`Retelling "${source.title}" for age ${age} (${resolveProfile(age).ageBand})…`);
 

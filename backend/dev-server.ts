@@ -17,15 +17,12 @@ import type { StoryTrace } from '../story-engine/types';
 import { CORS_HEADERS, handleGenerateStory, type BackendEnv } from './handler';
 import { PRESETS } from './presets';
 import { addToLibrary } from './libraryWriter';
+import { describeAi, loadLocalEnv } from './localEnv';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 
-try {
-  process.loadEnvFile(join(root, '.env'));
-} catch {
-  // no .env — fine, mock provider will be used
-}
+loadLocalEnv(join(root, '.env')); // no .env is fine — the mock provider is used
 
 const PORT = Number(process.env.PORT) || 8787;
 const env = process.env as BackendEnv;
@@ -76,7 +73,7 @@ const server = createServer(async (req, res) => {
       );
     }
     if (req.method === 'GET' && url.pathname === '/health') {
-      return send(res, 200, JSON.stringify({ ok: true, gemini: !!env.GEMINI_API_KEY, model: env.GEMINI_MODEL ?? null }));
+      return send(res, 200, JSON.stringify({ ok: true, ai: describeAi(env), model: env.GEMINI_MODEL ?? null }));
     }
     if (req.method === 'POST' && url.pathname === '/library/add') {
       const result = addToLibrary(await readBody(req), join(root, 'story-engine', 'library', 'added.ts'));
@@ -101,10 +98,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  Tester:   http://localhost:${PORT}/`);
   console.log(`  API:      POST http://localhost:${PORT}/generate-story`);
   if (lan) console.log(`  Phone:    EXPO_PUBLIC_STORY_API_URL=http://${lan}:${PORT}/generate-story`);
-  console.log(
-    env.GEMINI_API_KEY
-      ? `  Provider: Gemini (${env.GEMINI_MODEL || 'default model'})`
-      : '  Provider: MOCK — set GEMINI_API_KEY in .env to use Gemini',
-  );
+  console.log(`  AI:       ${describeAi(env)}`);
   console.log('');
 });

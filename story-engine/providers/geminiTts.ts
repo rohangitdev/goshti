@@ -1,17 +1,24 @@
 /**
- * Gemini text-to-speech (Interactions API) — BACKEND ONLY.
- * One request per TtsChunk; each line carries its own performance style.
+ * Gemini text-to-speech — BACKEND ONLY. One request per TtsChunk.
+ * - Vertex AI (the app): generateContent on a speech model; one performance style per chunk.
+ * - AI Studio (experiments): the Interactions API; each line carries its own style.
  */
 import { ProviderError } from '../provider';
 import type { SpeechSynthesizer, TtsChunk } from '../tts';
+import { aiStudioAccess, type GoogleAccess } from './googleAccess';
 
 export const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-tts';
 export const DEFAULT_TTS_FALLBACKS = ['gemini-3.8-flash-lite-tts'];
+/** On Vertex AI: try the same model as AI Studio first, then the speech models Google Cloud lists. */
+export const VERTEX_TTS_FALLBACKS = ['gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-tts'];
 export const DEFAULT_TTS_VOICE = 'Aoede';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 export interface GeminiTtsConfig {
-  apiKey: string;
+  /** AI Studio key (experiments). Ignored when `access` is given. */
+  apiKey?: string;
+  /** How to reach Gemini — Vertex AI for the app. */
+  access?: GoogleAccess;
   model?: string;
   /** Comma-separated fallback models, or "none". */
   fallbackModels?: string;
@@ -87,18 +94,33 @@ export function ensureWav(base64: string, mimeType: string): { base64: string; m
 export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
   readonly name = 'gemini-tts';
   private readonly fetchImpl: typeof fetch;
+  private readonly access: GoogleAccess;
   private perLineStyles = true;
 
   constructor(private readonly config: GeminiTtsConfig) {
-    if (!config.apiKey) throw new ProviderError('NOT_CONFIGURED', 'GEMINI_API_KEY is not set');
+    this.access = config.access ?? aiStudioAccess(config.apiKey ?? '');
     this.fetchImpl = config.fetchImpl ?? fetch;
   }
 
   private models(): string[] {
     const primary = this.config.model || DEFAULT_TTS_MODEL;
     const f = this.config.fallbackModels;
-    const fallbacks = f === 'none' ? [] : f ? f.split(',').map((m) => m.trim()).filter(Boolean) : DEFAULT_TTS_FALLBACKS;
+    const defaults = this.access.kind === 'vertex' ? VERTEX_TTS_FALLBACKS : DEFAULT_TTS_FALLBACKS;
+    const fallbacks = f === 'none' ? [] : f ? f.split(',').map((m) => m.trim()).filter(Boolean) : defaults;
     return [primary, ...fallbacks.filter((m) => m !== primary)];
+  }
+
+  /** Vertex AI: "{style}: {text}" to a speech model, with Aaji's prebuilt voice. */
+  private vertexBody(chunk: TtsChunk, voice: string) {
+    const style = chunk.parts[0]?.style ?? '';
+    const text = chunk.parts.map((p) => p.text).join(' ');
+    return {
+      contents: [{ role: 'user', parts: [{ text: style ? `${style}: ${text}` : text }] }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+      },
+    };
   }
 
   private body(model: string, chunk: TtsChunk, voice: string) {
@@ -123,16 +145,19 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
 
   async synthesize(chunk: TtsChunk, voice: string) {
     const tried: string[] = [];
+    const vertex = this.access.kind === 'vertex';
+    let reauthed = false;
     for (const model of this.models()) {
       for (let attempt = 0; attempt < 2; attempt++) {
+        const auth = await this.access.headers();
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), this.config.requestTimeoutMs ?? 110_000);
         let res: Response;
         try {
-          res = await this.fetchImpl(ENDPOINT, {
+          res = await this.fetchImpl(vertex ? this.access.generateContentUrl(model, { beta: true }) : ENDPOINT, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
-            body: JSON.stringify(this.body(model, chunk, voice)),
+            headers: { 'Content-Type': 'application/json', ...auth },
+            body: JSON.stringify(vertex ? this.vertexBody(chunk, voice) : this.body(model, chunk, voice)),
             signal: controller.signal,
           });
         } catch (e) {
@@ -148,8 +173,20 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
           return { ...ensureWav(audio.base64, audio.mimeType), model };
         }
         const message = json.error?.message ?? `HTTP ${res.status}`;
+        // An expired Google Cloud token: sign in again once.
+        if (res.status === 401 && !reauthed) {
+          reauthed = true;
+          this.access.invalidate();
+          attempt -= 1;
+          continue;
+        }
+        // Model not offered here: try the next one.
+        if (res.status === 404) {
+          tried.push(`${model}: not available`);
+          break;
+        }
         // If per-line styles aren't accepted, retry once with a single styled text.
-        if (res.status === 400 && this.perLineStyles && attempt === 0) {
+        if (!vertex && res.status === 400 && this.perLineStyles && attempt === 0) {
           this.perLineStyles = false;
           continue;
         }
@@ -159,6 +196,9 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
         }
         throw new ProviderError('HTTP_ERROR', `${message} (model ${model})`, 'tts');
       }
+    }
+    if (tried.length && tried.every((t) => t.endsWith('not available'))) {
+      throw new ProviderError('HTTP_ERROR', `No speech model available here (${tried.join('; ')}) — set TTS_MODEL`, 'tts');
     }
     throw new ProviderError('QUOTA_EXHAUSTED', `Text-to-speech unavailable (${tried.join('; ')})`, 'tts');
   }

@@ -9,10 +9,11 @@
  * tts-render only accepts an audioToken that this backend issued when it approved a story,
  * so Aaji can never be made to say arbitrary text.
  *
- * This is GOSHTI's audio story service: app → backend → here → TTSProvider (Gemini today).
+ * This is GOSHTI's audio story service: app → backend → here → TTSProvider (Gemini on Vertex AI).
  * Aaji is always a prebuilt synthetic voice (see resolveAajiVoice) — no voice cloning.
  */
 import { ProviderError } from '../story-engine/provider';
+import { googleAccessFromEnv, hasGoogleAccess, type GoogleEnv } from '../story-engine/providers/googleAccess';
 import { DEFAULT_TTS_VOICE, GeminiSpeechSynthesizer } from '../story-engine/providers/geminiTts';
 import { AUDITION_CHUNK, AUDITION_VOICES, buildTtsChunks, DEFAULT_AAJI_STYLE } from '../story-engine/tts';
 import { resolveAajiVoice, SynthesizerTTSProvider, type TTSProvider } from '../story-engine/ttsProvider';
@@ -20,8 +21,7 @@ import { findLibraryStory, libraryAudioScript } from '../story-engine/library';
 import type { AudioScript } from '../story-engine/types';
 import { openJson, sealJson } from './continuation';
 
-export interface TtsEnv {
-  GEMINI_API_KEY?: string;
+export interface TtsEnv extends GoogleEnv {
   TTS_MODEL?: string;
   TTS_FALLBACK_MODEL?: string;
   /** Aaji's prebuilt voice (default Aoede). Must be a prebuilt voice name. */
@@ -40,7 +40,21 @@ interface AudioTokenPayload {
 }
 
 const PURPOSE = 'audio';
-const secretOf = (env: TtsEnv) => env.STORY_STATE_SECRET || env.GEMINI_API_KEY || 'goshti-mock-provider';
+
+/**
+ * Secret for sealed tokens (story continuations, audio tokens). Set STORY_STATE_SECRET in
+ * production; otherwise it's derived from whichever Google credential is configured.
+ */
+export function backendSecret(env: TtsEnv): string {
+  return (
+    env.STORY_STATE_SECRET ||
+    env.GOOGLE_SERVICE_ACCOUNT_JSON ||
+    env.VERTEX_API_KEY ||
+    env.GEMINI_API_KEY ||
+    'goshti-mock-provider'
+  );
+}
+const secretOf = backendSecret;
 
 export function chunksFor(script: AudioScript, env: TtsEnv, age?: number) {
   return buildTtsChunks(script, {
@@ -52,13 +66,15 @@ export function chunksFor(script: AudioScript, env: TtsEnv, age?: number) {
 /** Issued with every APPROVED story. */
 export async function issueAudioToken(title: string, script: AudioScript, env: TtsEnv, age?: number) {
   const token = await sealJson({ v: 1, title, script, age } satisfies AudioTokenPayload, secretOf(env), PURPOSE);
-  return { audioToken: token, audioChunks: chunksFor(script, env, age).length, ttsAvailable: !!env.GEMINI_API_KEY };
+  return { audioToken: token, audioChunks: chunksFor(script, env, age).length, ttsAvailable: hasGoogleAccess(env) };
 }
 
 /** The TTS provider behind Aaji's voice. Swap providers here (the app is unaffected). */
 export function createTtsProvider(env: TtsEnv): TTSProvider {
+  const access = googleAccessFromEnv(env);
+  if (!access) throw new ProviderError('NOT_CONFIGURED', 'text-to-speech is not configured (set up Vertex AI)');
   return new SynthesizerTTSProvider(
-    new GeminiSpeechSynthesizer({ apiKey: env.GEMINI_API_KEY ?? '', model: env.TTS_MODEL, fallbackModels: env.TTS_FALLBACK_MODEL }),
+    new GeminiSpeechSynthesizer({ access, model: env.TTS_MODEL, fallbackModels: env.TTS_FALLBACK_MODEL }),
     env.TTS_STYLE || DEFAULT_AAJI_STYLE,
   );
 }
@@ -86,12 +102,12 @@ export async function handleTts(
   if (b.action === 'tts-voices') {
     return { status: 200, body: { voices: AUDITION_VOICES, current: env.TTS_VOICE || DEFAULT_TTS_VOICE } };
   }
-  if (!env.GEMINI_API_KEY) {
-    return { status: 503, body: { status: 'FAILED', reason: 'GEMINI_API_KEY is not set — text-to-speech unavailable' } };
+  if (!hasGoogleAccess(env)) {
+    return { status: 503, body: { status: 'FAILED', reason: 'text-to-speech is not configured (set up Vertex AI)' } };
   }
-  const tts = createTtsProvider(env);
 
   try {
+    const tts = createTtsProvider(env);
     if (b.action === 'tts-audition') {
       const t0 = Date.now();
       const audio = await tts.synthesizeScene(AUDITION_CHUNK, voice);

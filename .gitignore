@@ -53,3 +53,8 @@ supabase/.temp/
 supabase/.branches/
 qa-results/
 library-drafts/
+
+# Google Cloud service-account keys — keep them outside the project folder; these catch accidents
+*service-account*.json
+*-sa-key.json
+vertex-key*.json

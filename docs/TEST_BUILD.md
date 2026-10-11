@@ -6,7 +6,7 @@ real app — no Expo Go, no laptop needed.
 ## Before the first build (once)
 
 1. **Backend**
-   - Gemini billing on, with a budget alert in Google Cloud (testers will use far more than the free tier).
+   - Stories and Aaji's voice on **Vertex AI** (not an AI Studio key — its terms exclude children's apps), with billing and a budget alert: see `docs/VERTEX_SETUP.md`.
    - `npm run deploy:function`
    - Keep developer traces private — pick any random value, put it in `.env` as `STORY_DEBUG_TOKEN=…`
      and set the same in Supabase:

@@ -2,6 +2,7 @@
  * Gemini implementation of StoryAIProvider — BACKEND ONLY.
  * Never import this from the Expo app. Uses the public REST API with fetch, so the
  * same code runs in Node (local dev server) and Deno (Supabase Edge Function).
+ * Reaches Gemini through a GoogleAccess: Vertex AI for the app, or an AI Studio key for experiments.
  */
 import type { z } from 'zod';
 
@@ -29,6 +30,7 @@ import {
   type TokenUsage,
   type WriteInput,
 } from '../provider';
+import { aiStudioAccess, type GoogleAccess } from './googleAccess';
 import {
   IntentResultSchema,
   AudioDirectionSchema,
@@ -92,10 +94,12 @@ export const DEFAULT_THINKING: Record<string, ThinkingLevel> = {
 
 /** Waits between retries when Google reports high demand / rate limits. */
 export const DEFAULT_RETRY_DELAYS_MS = [1500, 4000];
-const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export interface GeminiConfig {
-  apiKey: string;
+  /** AI Studio key (developer experiments). Ignored when `access` is given. */
+  apiKey?: string;
+  /** How to reach Gemini — Vertex AI for the app (see googleAccess.ts). */
+  access?: GoogleAccess;
   /** Default model for every stage (GEMINI_MODEL). */
   model?: string;
   /** Optional per-role overrides (GEMINI_WRITER_MODEL, GEMINI_CRITIC_MODEL). */
@@ -168,7 +172,8 @@ export function extractJson(text: string): unknown {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class GeminiProvider implements StoryAIProvider {
-  readonly name = 'gemini';
+  readonly name: string;
+  private readonly access: GoogleAccess;
   readonly models: Record<string, string>;
   private readonly fetchImpl: typeof fetch;
   private schemaSupported = true;
@@ -178,7 +183,8 @@ export class GeminiProvider implements StoryAIProvider {
   private usageLog: TokenUsage[] = [];
 
   constructor(private readonly config: GeminiConfig) {
-    if (!config.apiKey) throw new ProviderError('NOT_CONFIGURED', 'GEMINI_API_KEY is not set');
+    this.access = config.access ?? aiStudioAccess(config.apiKey ?? '');
+    this.name = this.access.kind === 'vertex' ? 'gemini-vertex' : 'gemini';
     const base = config.model || DEFAULT_GEMINI_MODEL;
     const writer = config.writerModel || base;
     const critic = config.criticModel || base;
@@ -358,6 +364,7 @@ export class GeminiProvider implements StoryAIProvider {
     let index = 0;
     let model = models[0];
     let retry = 0;
+    let reauthed = false;
     const tried: string[] = [];
 
     for (;;) {
@@ -366,10 +373,17 @@ export class GeminiProvider implements StoryAIProvider {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(this.config.requestTimeoutMs ?? 120_000, remaining));
       let res: Response;
+      let auth: Record<string, string>;
       try {
-        res = await this.fetchImpl(`${API_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+        auth = await this.access.headers();
+      } catch (e) {
+        clearTimeout(timer);
+        throw e instanceof ProviderError ? new ProviderError(e.code, e.message, spec.stage) : e;
+      }
+      try {
+        res = await this.fetchImpl(this.access.generateContentUrl(model), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.config.apiKey },
+          headers: { 'Content-Type': 'application/json', ...auth },
           body: JSON.stringify(body),
           signal: controller.signal,
         });
@@ -394,6 +408,19 @@ export class GeminiProvider implements StoryAIProvider {
         if (res.status === 400 && this.thinkingSupported && /thinking/i.test(message)) {
           this.thinkingSupported = false;
           delete generationConfig.thinkingConfig;
+          continue;
+        }
+        // An expired Google Cloud token: sign in again once.
+        if (res.status === 401 && !reauthed) {
+          reauthed = true;
+          this.access.invalidate();
+          continue;
+        }
+        // Model not offered here (e.g. a newer name not yet on Vertex AI): try the next one.
+        if (res.status === 404 && index + 1 < models.length) {
+          tried.push(`${model}: not available`);
+          index += 1;
+          model = models[index];
           continue;
         }
 
