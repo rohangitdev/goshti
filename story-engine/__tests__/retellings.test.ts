@@ -6,7 +6,7 @@ import { generateRetelling, generateStory } from '../pipeline';
 import { buildCriticUserPrompt, buildPlannerUserPrompt, buildRewriteUserPrompt, buildStoryWriterUserPrompt } from '../prompts';
 import { resolveProfile } from '../profiles';
 import { validateStoryRequest } from '../request';
-import { findRetelling, formatRetelling, RETELLINGS, retellingsFor } from '../retellings';
+import { findRetelling, formatRetelling, inventedNames, RETELLINGS, retellingsFor } from '../retellings';
 import { CHECK_KEYS } from '../schemas';
 import { evaluation, fakeProvider, samplePlan, storyOfWords } from './fixtures';
 
@@ -52,6 +52,16 @@ describe('retelling catalogue', () => {
     // बाळ is Tilak's name, not "a baby".
     expect(findRetelling('tilak-shengachi-tarphale')!.title).not.toContain('लहान बाळ');
     expect(legend).toContain('never use बाळ to mean a baby');
+  });
+
+  it('spots invented named characters in stories about real people only', () => {
+    const tilak = findRetelling('tilak-shengachi-tarphale')!;
+    const story = 'सगळे त्याला बाळ म्हणायचे. बाळाचा मित्र मनू हसला. गुरुजी आले.';
+    expect(inventedNames(tilak, ['बाळ', 'गुरुजी', 'मनू', 'गण्या'], story)).toEqual(['मनू']);
+    expect(inventedNames(tilak, ['वर्गातला मित्र'], story)).toEqual([]);
+    expect(inventedNames(findRetelling('ambedkar-pustakanche-ghar')!, ['भीम'], 'भीमला पुस्तकं आवडायची')).toEqual([]);
+    // Folk tales may name anyone.
+    expect(inventedNames(findRetelling('birbal-resha')!, ['मानू'], 'मानू पुढे आला')).toEqual([]);
   });
 
   it('starts as DRAFT — nothing is approved until a human checks it', () => {
@@ -128,6 +138,20 @@ describe('retelling pipeline', () => {
       // A retelling keeps its own characters: no invented protagonist/setting ingredients.
       expect(Object.keys(r.trace.varietyIngredients ?? {})).toEqual(['humourStyle']);
     }
+  });
+
+  it('sends a real-person story back when it names an invented friend', async () => {
+    const story = { ...storyOfWords(520), storyText: storyOfWords(520).storyText + ' मनू हसला.' };
+    const { provider, calls } = fakeProvider({ story });
+    provider.createPlan = async () => ({
+      ...samplePlan,
+      mainCharacter: { ...samplePlan.mainCharacter, name: 'बाळ' },
+      supportingCharacters: [{ ...samplePlan.supportingCharacters[0], name: 'मनू' }],
+    });
+    const r = await generateRetelling(findRetelling('tilak-shengachi-tarphale')!, 6, provider);
+    expect(calls).toContain('rewriteStory');
+    expect(r.status).toBe('FAILED');
+    if (r.status === 'FAILED') expect(r.reason).toContain('invented named character');
   });
 
   it('refuses an age the outline is not meant for', async () => {

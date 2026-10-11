@@ -304,7 +304,7 @@ Only the traditional plot is used. Aaji tells it in her own words, never from a 
   4. He accepts the consequence calmly rather than say something untrue.
   5. Aaji ends: that boy grew up to be Lokmanya Tilak, who always spoke the truth fearlessly.
 - **Value:** Standing by the truth calmly.
-- **Must keep:** "मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही." In the first paragraph make clear that बाळ is the boy's NAME ("सगळे त्याला बाळ म्हणायचे"); never use बाळ to mean a baby, and never write "लहान बाळ".
+- **Must keep:** "मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही." In the first paragraph make clear that बाळ is the boy's NAME ("सगळे त्याला बाळ म्हणायचे"); never use बाळ to mean a baby, and never write "लहान बाळ". Inflect बाळ as a normal Marathi noun: बाळाला, बाळाने, बाळाचा, बाळाकडे — never बाळला, बाळने, बाळचा, बाळकडे.
 - **Softening:** The consequence is mild (sent home / a note to his father). The teacher is not a villain.
 
 ### सावित्रीबाईंची दुसरी साडी  `savitribai-dusri-sadi`
@@ -385,7 +385,7 @@ Only the traditional plot is used. Aaji tells it in her own words, never from a 
 ### पुस्तकांचं घर  `ambedkar-pustakanche-ghar`
 
 - **Ages:** 6-7, 8-9 · **Framing:** true — only these events · **Shelf:** adventure
-- **Names:** बाबासाहेब आंबेडकर
+- **Names:** भीम, बाबासाहेब आंबेडकर
 - **Plot:**
   1. Bhim loves reading more than anything; even when life is hard he studies with all his heart.
   2. He grows up and studies in India and far away in other countries, reading late into the night.
@@ -409,7 +409,7 @@ Only the traditional plot is used. Aaji tells it in her own words, never from a 
 ### नरेनचं चाफ्याचं झाड  `vivekananda-champyache-jhad`
 
 - **Ages:** 6-7, 8-9 · **Framing:** legend — Aaji says "असं सांगतात" · **Shelf:** adventure
-- **Names:** नरेन, स्वामी विवेकानंद
+- **Names:** नरेन, नरेंद्र, स्वामी विवेकानंद
 - **Plot:**
   1. Little Naren and his friends love playing on a champa tree in a neighbour's garden.
   2. Worried they will break the branches, the old neighbour says a ghost lives in that tree.

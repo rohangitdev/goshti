@@ -442,6 +442,7 @@ export const RETELLINGS: readonly RetellingSource[] = [
     mustKeep: [
       '"मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही."',
       'In the first paragraph make clear that बाळ is the boy\'s NAME ("सगळे त्याला बाळ म्हणायचे"); never use बाळ to mean a baby, and never write "लहान बाळ".',
+      'Inflect बाळ as a normal Marathi noun: बाळाला, बाळाने, बाळाचा, बाळाकडे — never बाळला, बाळने, बाळचा, बाळकडे.',
     ],
     soften: 'The consequence is mild (sent home / a note to his father). The teacher is not a villain.',
     status: DRAFT,
@@ -564,7 +565,7 @@ export const RETELLINGS: readonly RetellingSource[] = [
     category: 'adventure',
     ageBands: ['6-7', '8-9'],
     framing: 'TRUE',
-    keepNames: ['बाबासाहेब आंबेडकर'],
+    keepNames: ['भीम', 'बाबासाहेब आंबेडकर'],
     beats: [
       'Bhim loves reading more than anything; even when life is hard he studies with all his heart.',
       'He grows up and studies in India and far away in other countries, reading late into the night.',
@@ -600,7 +601,7 @@ export const RETELLINGS: readonly RetellingSource[] = [
     category: 'adventure',
     ageBands: ['6-7', '8-9'],
     framing: 'LEGEND',
-    keepNames: ['नरेन', 'स्वामी विवेकानंद'],
+    keepNames: ['नरेन', 'नरेंद्र', 'स्वामी विवेकानंद'],
     beats: [
       'Little Naren and his friends love playing on a champa tree in a neighbour\'s garden.',
       'Worried they will break the branches, the old neighbour says a ghost lives in that tree.',

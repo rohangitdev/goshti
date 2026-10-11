@@ -15,7 +15,7 @@ import { countWords, judgeEvaluation, localStoryChecks } from './evaluation';
 import type { StoryLogger } from './logging';
 import { resolveProfile, type ChildAge } from './profiles';
 import { ProviderError, type ProviderErrorCode, type StoryAIProvider } from './provider';
-import type { RetellingSource } from './retellings';
+import { inventedNames, type RetellingSource } from './retellings';
 import { validateStoryRequest } from './request';
 import { StoryPlanSchema, type StoryRequest } from './schemas';
 import { MESSAGES, type PipelineResult, type StageName, type StoryTrace } from './types';
@@ -238,14 +238,17 @@ export async function advancePipeline(
           const evaluation = await timed(() => provider.evaluateStory({ request, profile, plan, story, retell }));
           // A retelling's traditional names (कृष्ण, ध्रुव…) are kept even if hard to say.
           const keep = retell?.keepNames ?? [];
+          const planNames = [plan.mainCharacter.name, ...plan.supportingCharacters.map((c) => c.name)];
           const local = localStoryChecks(story, profile, {
             enforceLength: options.enforceLength ?? true,
             ignoreWords: request.childName ? [request.childName] : [],
             age: request.age,
-            characterNames: [plan.mainCharacter.name, ...plan.supportingCharacters.map((c) => c.name)].filter(
-              (n) => !keep.some((k) => k.includes(n) || n.includes(k)),
-            ),
+            characterNames: planNames.filter((n) => !keep.some((k) => k.includes(n) || n.includes(k))),
           });
+          const invented = retell ? inventedNames(retell, planNames, story.storyText) : [];
+          if (invented.length) {
+            local.push(`invented named character(s) in a story about a real person — keep them unnamed (एक मित्र, वर्गातली मुलं): ${invented.join(', ')}`);
+          }
           const verdict = judgeEvaluation(evaluation, local);
           trace.critiques.push({ attempt: trace.attemptCount, evaluation, passed: verdict.passed, failures: verdict.failures });
           if (verdict.passed) {

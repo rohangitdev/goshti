@@ -11,7 +11,32 @@ export function retellingsFor(ageBand: AgeBand, options: { approvedOnly?: boolea
 
 /** Shared by LEGEND and TRUE: stories about real people. */
 const REAL_PERSON_RULES =
-  'Do not invent NAMED characters: anyone not in the outline stays unnamed (एक मित्र, वर्गातली मुलं, गुरुजी). End with at most two short sentences about who the child grew up to be — no lecture about their greatness.';
+  'Do not invent NAMED characters: anyone not in the outline stays unnamed (एक मित्र, वर्गातली मुलं, गुरुजी) — in the plan, give them their role as the name (मित्र, गुरुजी, हत्ती). End with at most two short sentences about who the child grew up to be — no lecture about their greatness.';
+
+/** Words that describe an unnamed person or animal — fine in a real-person story. */
+const ROLE_WORDS = new Set([
+  'गुरुजी', 'गुरूजी', 'शिक्षक', 'शिक्षिका', 'बाई', 'मास्तर', 'इन्स्पेक्टर', 'निरीक्षक', 'साहेब',
+  'आई', 'बाबा', 'वडील', 'आजी', 'आजोबा', 'काका', 'काकू', 'मामा', 'मावशी', 'दादा', 'ताई', 'भाऊ', 'बहीण',
+  'मित्र', 'मैत्रीण', 'मित्रमंडळी', 'वर्गमित्र', 'सवंगडी', 'मुलं', 'मुलगा', 'मुलगी', 'मुली', 'मुले',
+  'शेजारी', 'शेजारीण', 'म्हातारा', 'म्हातारी', 'गावकरी', 'लोक', 'माणूस', 'नावाडी', 'शिपाई',
+  'राजा', 'राणी', 'मावळे', 'मावळा', 'सैनिक', 'पुजारी', 'साधू', 'भक्त',
+  'हत्ती', 'घोडा', 'वाघ', 'साप', 'पक्षी', 'गाय', 'कुत्रा', 'मांजर',
+]);
+
+/**
+ * Real-person stories (LEGEND/TRUE) must not invent named characters. Returns single-word
+ * character names from the plan that are neither kept names nor roles but appear in the story.
+ */
+export function inventedNames(source: RetellingSource, characterNames: string[], storyText: string): string[] {
+  if (source.framing !== 'LEGEND' && source.framing !== 'TRUE') return [];
+  return characterNames
+    .map((n) => n.trim())
+    .filter((name) => {
+      if (!name || /\s/.test(name) || ROLE_WORDS.has(name)) return false;
+      if (source.keepNames.some((k) => k.includes(name) || name.includes(k))) return false;
+      return storyText.includes(name);
+    });
+}
 
 const FRAMING_RULES: Record<RetellingFraming, string> = {
   FOLK: 'A traditional fable. Tell it freely as Aaji\'s own telling; the outline\'s events and moral stay.',
