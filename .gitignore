@@ -52,3 +52,4 @@ yarn-error.*
 supabase/.temp/
 supabase/.branches/
 qa-results/
+library-drafts/

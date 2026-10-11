@@ -1,5 +1,6 @@
 import type { DevelopmentalProfile } from './profiles';
 import type { AudioDirection, IntentResult, StoryEvaluation, StoryPlan, StoryRequest, WrittenStory } from './schemas';
+import type { RetellingSource } from './retellings';
 import type { VarietyIngredients } from './variety';
 
 export interface PlanInput {
@@ -7,12 +8,15 @@ export interface PlanInput {
   profile: DevelopmentalProfile;
   /** RANDOM: full ingredient set. CUSTOM: only value/humour suggestions. */
   ingredients: Partial<VarietyIngredients>;
+  /** Set when retelling a traditional story (library generation only). */
+  retell?: RetellingSource;
 }
 
 export interface WriteInput {
   request: StoryRequest;
   profile: DevelopmentalProfile;
   plan: StoryPlan;
+  retell?: RetellingSource;
 }
 
 export interface EvaluateInput {
@@ -20,6 +24,7 @@ export interface EvaluateInput {
   profile: DevelopmentalProfile;
   plan: StoryPlan;
   story: WrittenStory;
+  retell?: RetellingSource;
 }
 
 export interface RewriteInput extends EvaluateInput {

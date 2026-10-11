@@ -187,6 +187,8 @@ export const CHECK_KEYS = [
   'hindiWords',
   /** Bookish words the child can't understand by ear, or hard-to-say names. */
   'hardWords',
+  /** Retellings only: the story strayed from the approved outline (or invented facts about a real person). */
+  'retellingDrift',
 ] as const;
 export type CheckKey = (typeof CHECK_KEYS)[number];
 

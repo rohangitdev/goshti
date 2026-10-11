@@ -15,6 +15,7 @@ import { countWords, judgeEvaluation, localStoryChecks } from './evaluation';
 import type { StoryLogger } from './logging';
 import { resolveProfile, type ChildAge } from './profiles';
 import { ProviderError, type ProviderErrorCode, type StoryAIProvider } from './provider';
+import type { RetellingSource } from './retellings';
 import { validateStoryRequest } from './request';
 import { StoryPlanSchema, type StoryRequest } from './schemas';
 import { MESSAGES, type PipelineResult, type StageName, type StoryTrace } from './types';
@@ -29,6 +30,8 @@ export interface PipelineState {
   /** How many times the current phase was retried after a transient provider error. */
   phaseRetries: number;
   ingredients: Partial<VarietyIngredients>;
+  /** A traditional story being retold (library generation only — never from the app). */
+  retell?: RetellingSource;
   trace: StoryTrace;
 }
 
@@ -50,6 +53,8 @@ export interface PipelineOptions {
   enforceLength?: boolean;
   rng?: Rng;
   now?: () => number;
+  /** Retell this traditional story instead of inventing one (library generation only). */
+  retell?: RetellingSource;
 }
 
 const PHASE_STAGE: Record<PipelinePhase, StageName> = {
@@ -67,7 +72,7 @@ const TRANSIENT: ProviderErrorCode[] = ['OVERLOADED', 'RATE_LIMITED', 'TIMEOUT',
 export function startPipeline(
   rawRequest: unknown,
   provider: StoryAIProvider,
-  options: Pick<PipelineOptions, 'rng' | 'now' | 'logger'> = {},
+  options: Pick<PipelineOptions, 'rng' | 'now' | 'logger' | 'retell'> = {},
 ): { state: PipelineState } | { result: PipelineResult } {
   const now = options.now ?? Date.now;
   const trace: StoryTrace = {
@@ -95,9 +100,30 @@ export function startPipeline(
   const profile = resolveProfile(request.age);
   trace.profile = profile;
 
+  const retell = options.retell;
+  if (retell) {
+    trace.retellingId = retell.id;
+    const problem =
+      request.mode !== 'RANDOM'
+        ? 'a retelling has no child idea (mode must be RANDOM)'
+        : !retell.ageBands.includes(profile.ageBand)
+          ? `retelling ${retell.id} is not meant for ages ${profile.ageBand}`
+          : null;
+    if (problem) {
+      trace.errors.push(problem);
+      trace.outcome = 'INVALID_REQUEST';
+      options.logger?.log(trace);
+      return { result: { status: 'INVALID_REQUEST', errors: [problem], trace } };
+    }
+  }
+
   const all = pickIngredients(request, profile, options.rng);
-  const ingredients: Partial<VarietyIngredients> =
-    request.mode === 'RANDOM' ? all : { humourStyle: all.humourStyle, positiveValue: all.positiveValue };
+  // A retelling keeps its own characters and plot — only the humour style is suggested.
+  const ingredients: Partial<VarietyIngredients> = retell
+    ? { humourStyle: all.humourStyle }
+    : request.mode === 'RANDOM'
+      ? all
+      : { humourStyle: all.humourStyle, positiveValue: all.positiveValue };
   trace.varietyIngredients = ingredients as Record<string, string>;
 
   let phase: PipelinePhase = 'CLASSIFY';
@@ -106,7 +132,7 @@ export function startPipeline(
     trace.safety = { allowed: true, reason: 'Story request.' };
     phase = 'PLAN';
   }
-  return { state: { v: 1, phase, phaseRetries: 0, ingredients, trace } };
+  return { state: { v: 1, phase, phaseRetries: 0, ingredients, ...(retell && { retell }), trace } };
 }
 
 /** Runs phases until done, or until the slice budget says to hand back IN_PROGRESS. */
@@ -124,6 +150,7 @@ export async function advancePipeline(
   const startedAt = Date.parse(trace.startedAt);
   const request = trace.normalizedRequest as StoryRequest;
   const profile = resolveProfile(request.age);
+  const retell = state.retell;
   trace.profile = profile;
   trace.provider = { name: provider.name, models: provider.models };
 
@@ -189,7 +216,7 @@ export async function advancePipeline(
         }
 
         case 'PLAN': {
-          const raw = await timed(() => provider.createPlan({ request, profile, ingredients: state.ingredients }));
+          const raw = await timed(() => provider.createPlan({ request, profile, ingredients: state.ingredients, retell }));
           // The request — not the model — is the source of truth for these fields.
           trace.plan = StoryPlanSchema.parse({ ...raw, age: request.age, developmentalProfile: profile.id, category: request.category });
           state.phase = 'WRITE';
@@ -199,7 +226,7 @@ export async function advancePipeline(
         case 'WRITE': {
           const plan = trace.plan!;
           trace.attemptCount = 1;
-          const story = await timed(() => provider.generateStory({ request, profile, plan }));
+          const story = await timed(() => provider.generateStory({ request, profile, plan, retell }));
           trace.drafts.push({ attempt: 1, kind: 'DRAFT', story, wordCount: countWords(story.storyText) });
           state.phase = 'EVALUATE';
           break;
@@ -208,12 +235,16 @@ export async function advancePipeline(
         case 'EVALUATE': {
           const plan = trace.plan!;
           const story = trace.drafts[trace.drafts.length - 1].story;
-          const evaluation = await timed(() => provider.evaluateStory({ request, profile, plan, story }));
+          const evaluation = await timed(() => provider.evaluateStory({ request, profile, plan, story, retell }));
+          // A retelling's traditional names (कृष्ण, ध्रुव…) are kept even if hard to say.
+          const keep = retell?.keepNames ?? [];
           const local = localStoryChecks(story, profile, {
             enforceLength: options.enforceLength ?? true,
             ignoreWords: request.childName ? [request.childName] : [],
             age: request.age,
-            characterNames: [plan.mainCharacter.name, ...plan.supportingCharacters.map((c) => c.name)],
+            characterNames: [plan.mainCharacter.name, ...plan.supportingCharacters.map((c) => c.name)].filter(
+              (n) => !keep.some((k) => k.includes(n) || n.includes(k)),
+            ),
           });
           const verdict = judgeEvaluation(evaluation, local);
           trace.critiques.push({ attempt: trace.attemptCount, evaluation, passed: verdict.passed, failures: verdict.failures });
@@ -233,7 +264,7 @@ export async function advancePipeline(
           const previous = trace.drafts[trace.drafts.length - 1].story;
           const critique = trace.critiques[trace.critiques.length - 1];
           const story = await timed(() =>
-            provider.rewriteStory({ request, profile, plan, story: previous, evaluation: critique.evaluation, failures: critique.failures }),
+            provider.rewriteStory({ request, profile, plan, story: previous, evaluation: critique.evaluation, failures: critique.failures, retell }),
           );
           trace.attemptCount += 1;
           trace.drafts.push({ attempt: trace.attemptCount, kind: 'REWRITE', story, wordCount: countWords(story.storyText) });
@@ -280,6 +311,7 @@ export async function advancePipeline(
               audioScript,
               estimatedDurationSeconds: estimateDurationSeconds(audioScript),
               attempts: trace.attemptCount,
+              ...(retell && { sourceId: retell.id }),
             },
           });
         }
@@ -315,4 +347,17 @@ export async function generateStory(
     if (r.status !== 'IN_PROGRESS') return r;
     state = r.state;
   }
+}
+
+/**
+ * Retells a traditional story (Panchatantra, Birbal, great Indians…) for the library.
+ * Never reachable from the app: the app's requests can only be RANDOM or CUSTOM.
+ */
+export function generateRetelling(
+  source: RetellingSource,
+  age: ChildAge,
+  provider: StoryAIProvider,
+  options: Omit<PipelineOptions, 'retell'> = {},
+): Promise<PipelineResult> {
+  return generateStory({ age, category: source.category, mode: 'RANDOM' }, provider, { ...options, retell: source });
 }

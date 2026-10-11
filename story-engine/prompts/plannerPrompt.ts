@@ -1,5 +1,5 @@
 import type { PlanInput } from '../provider';
-import { formatProfile, formatRequest, JSON_ONLY } from './shared';
+import { formatProfile, formatRequest, formatRetellingBlock, JSON_ONLY } from './shared';
 
 export const PLANNER_SYSTEM_PROMPT = `You are GOSHTI's hidden children's story planner.
 
@@ -21,6 +21,8 @@ Plan specifically for the child's developmental level.
 The story must be original.
 
 Do not reproduce or adapt existing copyrighted stories, known plots, named characters or commercial audio-story material.
+
+Exception: when the input contains a RETELLING SOURCE (a traditional public-domain story chosen by GOSHTI's editors), plan that story faithfully as instructed there — its plot, names and moral — while every age, safety and language rule still applies.
 
 Create a plan with:
 
@@ -92,7 +94,7 @@ export function buildPlannerUserPrompt(input: PlanInput): string {
     ? `\nRecently heard titles — make this story clearly different from them:\n${input.request.avoidTitles.map((t) => `- ${t}`).join('\n')}`
     : '';
 
-  return `${formatRequest(input.request)}
+  return `${formatRequest(input.request)}${formatRetellingBlock(input.retell)}
 
 ${formatProfile(input.profile)}
 

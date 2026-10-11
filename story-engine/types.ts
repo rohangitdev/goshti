@@ -101,6 +101,8 @@ export interface ApprovedStory {
   audioScript: AudioScript;
   estimatedDurationSeconds: number;
   attempts: number;
+  /** Set when this is a retelling of a traditional story (its catalogue id). */
+  sourceId?: string;
 }
 
 export type StageName =
@@ -135,6 +137,8 @@ export interface StoryTrace {
   safety?: { allowed: boolean; reason: string };
   profile?: DevelopmentalProfile;
   varietyIngredients?: Record<string, string>;
+  /** Catalogue id when this run retells a traditional story. */
+  retellingId?: string;
   plan?: StoryPlan;
   drafts: StoryDraft[];
   critiques: CriticResult[];

@@ -4,7 +4,7 @@
  * never name existing authors, narrators, albums or series here.
  */
 import type { WriteInput } from '../provider';
-import { formatPlan, formatProfile, formatRequest, JSON_ONLY } from './shared';
+import { formatPlan, formatProfile, formatRequest, formatRetellingBlock, JSON_ONLY } from './shared';
 
 export const STORY_WRITER_SYSTEM_PROMPT = `You are the principal story writer for GOSHTI / गोष्टी.
 
@@ -29,6 +29,8 @@ ORIGINALITY:
 The story must be original.
 
 Do not reproduce, paraphrase, adapt or imitate any identifiable existing children's story, commercial audio album, named storyteller, author or copyrighted character.
+
+Exception: when the input contains a RETELLING SOURCE, retell that traditional story faithfully in Aaji's own fresh words — never wording from any modern book, comic, album or app.
 
 Use the general craft of oral storytelling only:
 narration, dialogue, rhythm, anticipation, pauses, emotions and satisfying resolution.
@@ -270,7 +272,7 @@ The title must be concrete and intriguing (a character + an unusual object, goal
 ${JSON_ONLY}`;
 
 export function buildStoryWriterUserPrompt(input: WriteInput): string {
-  return `${formatRequest(input.request)}
+  return `${formatRequest(input.request)}${formatRetellingBlock(input.retell)}
 
 ${formatProfile(input.profile)}
 

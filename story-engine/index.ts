@@ -22,3 +22,4 @@ export * from './types';
 export * from './variety';
 export { MockStoryAIProvider } from './providers/mock';
 export * from './library';
+export * from './retellings';

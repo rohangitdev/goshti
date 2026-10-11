@@ -1,5 +1,5 @@
 import type { EvaluateInput } from '../provider';
-import { formatPlan, formatProfile, formatRequest, formatStory, JSON_ONLY } from './shared';
+import { formatPlan, formatProfile, formatRequest, formatRetellingBlock, formatStory, JSON_ONLY } from './shared';
 
 export const CRITIC_SYSTEM_PROMPT = `You are the independent GOSHTI Story Critic.
 
@@ -55,7 +55,8 @@ abruptEnding
 overstimulating
 ageMismatch
 repetitiveAIPhrasing
-copyrightSimilarityConcern
+copyrightSimilarityConcern — for a RETELLING SOURCE the traditional plot is expected; flag only wording that seems copied from a specific modern book, comic, album or app.
+retellingDrift — ONLY when a RETELLING SOURCE is given (otherwise always false): a beat is missing or changed, a major event is added, the moral is changed, a kept name is changed, the softening was ignored, a god is mocked, or — for a real person (LEGEND/TRUE) — any fact, date, place, number or event not in the outline is stated as true.
 imitableDanger — a child listener could copy something dangerous the characters do: climbing balconies, windows, railings, terraces or stacked furniture; jumping from heights; fire, matches, stoves, candles, crackers; deep water, wells, rivers, bathtubs alone; electricity and sockets; medicines or unknown things in the mouth; knives or sharp tools; going off with strangers; leaving home alone; road and traffic play. Be strict for ages 2–5 (true even if it ends well). For ages 6–9 it is true when the risky act is shown as fun or rewarded without a safe adult or a clear safety turn.
 looseThreads — something is introduced (an object, character, question or event) and never used, explained or resolved; or a scene does not connect to the goal. Every element must matter. A story that feels like a list of unrelated moments is true.
 hardWords — any bookish, literary or Sanskrit-heavy word a child of THIS age would not understand by ear (for example अनपेक्षित, आश्चर्यचकित, निर्णय, परिस्थिती, तात्काळ, अद्भुत), or a character name that is hard for this age to say (for ages 2–5: any name with joined consonants such as चंद्रू). For ages 8–9 only flag words that would genuinely confuse a listener.
@@ -95,7 +96,7 @@ Is the positive value shown rather than lectured?
 
 Does this sound good aloud?
 
-Does it feel original rather than generic AI output, and does it avoid resembling any known story, character or commercial audio series?
+Does it feel original rather than generic AI output, and does it avoid resembling any known story, character or commercial audio series? (For a RETELLING SOURCE judge originality on the freshness of the telling — voice, images, humour — not on the plot.)
 
 Is the length right for this profile?
 
@@ -115,7 +116,7 @@ Be brief — judge thoroughly, write little:
 ${JSON_ONLY}`;
 
 export function buildCriticUserPrompt(input: EvaluateInput): string {
-  return `${formatRequest(input.request)}
+  return `${formatRequest(input.request)}${formatRetellingBlock(input.retell)}
 
 ${formatProfile(input.profile)}
 

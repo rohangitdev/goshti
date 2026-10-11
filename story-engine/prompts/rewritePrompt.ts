@@ -1,5 +1,5 @@
 import type { RewriteInput } from '../provider';
-import { formatPlan, formatProfile, formatRequest, formatStory, JSON_ONLY } from './shared';
+import { formatPlan, formatProfile, formatRequest, formatRetellingBlock, formatStory, JSON_ONLY } from './shared';
 
 export const REWRITE_SYSTEM_PROMPT = `You are the GOSHTI Story Rewriter.
 
@@ -44,7 +44,7 @@ ${JSON_ONLY}`;
 export function buildRewriteUserPrompt(input: RewriteInput): string {
   const { evaluation } = input;
   const list = (items: string[]) => (items.length ? items.map((i) => `- ${i}`).join('\n') : '- none');
-  return `${formatRequest(input.request)}
+  return `${formatRequest(input.request)}${formatRetellingBlock(input.retell)}
 
 ${formatProfile(input.profile)}
 

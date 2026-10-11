@@ -4,6 +4,7 @@
  */
 import { getCategory } from '../categories';
 import type { DevelopmentalProfile } from '../profiles';
+import { formatRetelling, type RetellingSource } from '../retellings';
 import type { StoryPlan, StoryRequest, WrittenStory } from '../schemas';
 
 const bullets = (items: readonly string[]) => items.map((i) => `- ${i}`).join('\n');
@@ -45,6 +46,11 @@ export function formatRequest(request: StoryRequest): string {
   if (request.interests?.length) lines.push(`Child's interests: ${request.interests.join(', ')}`);
   if (request.favouriteAnimals?.length) lines.push(`Favourite animals: ${request.favouriteAnimals.join(', ')}`);
   return lines.join('\n');
+}
+
+/** Empty for ordinary stories; the retelling source block for a traditional retelling. */
+export function formatRetellingBlock(source: RetellingSource | undefined): string {
+  return source ? `\n\n${formatRetelling(source)}` : '';
 }
 
 export function formatPlan(plan: StoryPlan): string {
