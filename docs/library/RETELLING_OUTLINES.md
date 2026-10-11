@@ -93,7 +93,7 @@ Only the traditional plot is used. Aaji tells it in her own words, never from a 
   1. A hungry jackal wanders into a village, is chased by dogs, and falls into a big tub of blue dye.
   2. He comes out bright blue. Back in the forest the animals have never seen such a creature and are scared of him.
   3. The jackal says the forest gods sent him to be their king. The lion, tiger and elephant serve him; he even sends the other jackals away.
-  4. One evening the jackals howl together far away. Without thinking, he lifts his nose and howls too — "हुआऽऽ"!
+  4. One evening the jackals howl together far away (कोल्हेकुई). Without thinking, he lifts his nose and howls along with them!
   5. Everyone sees he is just a jackal. Laughed out of his throne, he runs away, and learns it is better to be yourself.
 - **Value:** Pretending doesn't last; be yourself.
 - **Softening:** In the old version he is killed — here he is laughed away and learns.
@@ -293,7 +293,7 @@ Only the traditional plot is used. Aaji tells it in her own words, never from a 
 
 ## आपले वीर
 
-### शेंगांची टरफलं  `tilak-shengachi-tarphale`
+### बाळ आणि शेंगांची टरफलं  `tilak-shengachi-tarphale`
 
 - **Ages:** 4-5, 6-7, 8-9 · **Framing:** legend — Aaji says "असं सांगतात" · **Shelf:** adventure
 - **Names:** बाळ, लोकमान्य टिळक
@@ -304,7 +304,7 @@ Only the traditional plot is used. Aaji tells it in her own words, never from a 
   4. He accepts the consequence calmly rather than say something untrue.
   5. Aaji ends: that boy grew up to be Lokmanya Tilak, who always spoke the truth fearlessly.
 - **Value:** Standing by the truth calmly.
-- **Must keep:** "मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही."
+- **Must keep:** "मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही." In the first paragraph make clear that बाळ is the boy's NAME ("सगळे त्याला बाळ म्हणायचे"); never use बाळ to mean a baby, and never write "लहान बाळ".
 - **Softening:** The consequence is mild (sent home / a note to his father). The teacher is not a villain.
 
 ### सावित्रीबाईंची दुसरी साडी  `savitribai-dusri-sadi`

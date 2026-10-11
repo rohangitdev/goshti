@@ -9,12 +9,19 @@ export function retellingsFor(ageBand: AgeBand, options: { approvedOnly?: boolea
   return RETELLINGS.filter((r) => r.ageBands.includes(ageBand) && (!options.approvedOnly || r.status === 'APPROVED'));
 }
 
+/** Shared by LEGEND and TRUE: stories about real people. */
+const REAL_PERSON_RULES =
+  'Do not invent NAMED characters: anyone not in the outline stays unnamed (एक मित्र, वर्गातली मुलं, गुरुजी). End with at most two short sentences about who the child grew up to be — no lecture about their greatness.';
+
 const FRAMING_RULES: Record<RetellingFraming, string> = {
   FOLK: 'A traditional fable. Tell it freely as Aaji\'s own telling; the outline\'s events and moral stay.',
   MYTH: 'From the Puranas/epics. Tell it with warmth and respect. Never make a god look silly or the butt of a joke.',
   LEGEND:
-    'A popular anecdote about a REAL person; its details are not certain. Aaji says "असं सांगतात" once. Do NOT add any new fact about the real person (no dates, places, numbers, relatives, events) beyond the outline.',
-  TRUE: 'A documented event about a REAL person. Use ONLY the events in the outline. You may add sensory detail and simple dialogue, but no new events, dates, places or numbers.',
+    'A popular anecdote about a REAL person; its details are not certain. Aaji says "असं सांगतात" once. Do NOT add any new fact about the real person (no dates, places, numbers, relatives, events) beyond the outline. ' +
+    REAL_PERSON_RULES,
+  TRUE:
+    'A documented event about a REAL person. Use ONLY the events in the outline. You may add sensory detail and simple dialogue, but no new events, dates, places or numbers. ' +
+    REAL_PERSON_RULES,
 };
 
 /** The block every stage sees when a story is a retelling (planner, writer, critic, rewriter). */
@@ -27,7 +34,7 @@ export function formatRetelling(source: RetellingSource): string {
     `Framing: ${source.framing} — ${FRAMING_RULES[source.framing]}`,
     `Names to keep exactly: ${source.keepNames.length ? source.keepNames.join(', ') : 'none (you may name the animals simply or not at all)'}`,
     `Plot, in order (keep every beat; do not add new major events):\n${list(source.beats)}`,
-    `Value shown through events (never state it as a lesson): ${source.moral}`,
+    `Value shown through events (never state it as a lesson, and never explain it in the narration — no "he did X, but he also didn't do Y" commentary): ${source.moral}`,
   ];
   if (source.mustKeep?.length) lines.push(`Must keep:\n${source.mustKeep.map((m) => `- ${m}`).join('\n')}`);
   if (source.soften) lines.push(`Softening for children (follow this over the traditional version): ${source.soften}`);

@@ -64,6 +64,8 @@ export const HINDI_WORDS: Record<string, string> = {
   ज्यादा: 'जास्त',
   ज़रूर: 'नक्की',
   सोचा: 'विचार केला',
+  सजा: 'शिक्षा',
+  सज़ा: 'शिक्षा',
 };
 
 /** Returns the distinct Hindi words found (whole-word match). */

@@ -18,6 +18,8 @@ describe('Hindi words', () => {
     expect(findHindiWords('आई म्हणाली, "तो का आला की नाही?" दोस्त साथ देतो.')).toEqual([]);
     // substrings of Marathi words are not matched
     expect(findHindiWords('बहुतेक मुलं आतमध्ये होती')).toEqual([]);
+    expect(findHindiWords('त्याला सजा झाली')).toEqual(['सजा']);
+    expect(findHindiWords('घर सजावट करून सजवलं')).toEqual([]);
   });
 
   it('fails a story with Hindi and names the replacements', () => {

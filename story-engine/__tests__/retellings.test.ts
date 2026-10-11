@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { isStoryCategory } from '../categories';
+import { findHindiWords } from '../hindiWords';
 import { generateRetelling, generateStory } from '../pipeline';
 import { buildCriticUserPrompt, buildPlannerUserPrompt, buildRewriteUserPrompt, buildStoryWriterUserPrompt } from '../prompts';
 import { resolveProfile } from '../profiles';
@@ -31,6 +32,26 @@ describe('retelling catalogue', () => {
       expect(['LEGEND', 'TRUE'], r.id).toContain(r.framing);
       expect(r.keepNames.length, r.id).toBeGreaterThan(0);
     }
+  });
+
+  it('contains no Hindi words the checker would fail (e.g. a jackal\'s "हुआ")', () => {
+    for (const r of RETELLINGS) {
+      const text = [r.title, ...r.keepNames, ...r.beats, ...(r.mustKeep ?? []), r.soften ?? ''].join(' ');
+      expect(findHindiWords(text), r.id).toEqual([]);
+    }
+  });
+
+  it('keeps real-person stories free of invented named characters and lectures', () => {
+    const legend = formatRetelling(findRetelling('tilak-shengachi-tarphale')!);
+    const truth = formatRetelling(findRetelling('gadge-baba-kharata')!);
+    for (const t of [legend, truth]) {
+      expect(t).toContain('Do not invent NAMED characters');
+      expect(t).toContain('no lecture');
+    }
+    expect(formatRetelling(findRetelling('bolka-kasav')!)).not.toContain('Do not invent NAMED characters');
+    // बाळ is Tilak's name, not "a baby".
+    expect(findRetelling('tilak-shengachi-tarphale')!.title).not.toContain('लहान बाळ');
+    expect(legend).toContain('never use बाळ to mean a baby');
   });
 
   it('starts as DRAFT — nothing is approved until a human checks it', () => {

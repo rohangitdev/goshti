@@ -135,7 +135,7 @@ export const RETELLINGS: readonly RetellingSource[] = [
       'A hungry jackal wanders into a village, is chased by dogs, and falls into a big tub of blue dye.',
       'He comes out bright blue. Back in the forest the animals have never seen such a creature and are scared of him.',
       'The jackal says the forest gods sent him to be their king. The lion, tiger and elephant serve him; he even sends the other jackals away.',
-      'One evening the jackals howl together far away. Without thinking, he lifts his nose and howls too — "हुआऽऽ"!',
+      'One evening the jackals howl together far away (कोल्हेकुई). Without thinking, he lifts his nose and howls along with them!',
       'Everyone sees he is just a jackal. Laughed out of his throne, he runs away, and learns it is better to be yourself.',
     ],
     moral: 'Pretending doesn\'t last; be yourself.',
@@ -425,7 +425,7 @@ export const RETELLINGS: readonly RetellingSource[] = [
   // ---------------------------------------------------------------- Great Indians
   {
     id: 'tilak-shengachi-tarphale',
-    title: 'शेंगांची टरफलं',
+    title: 'बाळ आणि शेंगांची टरफलं',
     collection: 'GREAT_INDIANS',
     category: 'adventure',
     ageBands: ['4-5', '6-7', '8-9'],
@@ -439,7 +439,10 @@ export const RETELLINGS: readonly RetellingSource[] = [
       'Aaji ends: that boy grew up to be Lokmanya Tilak, who always spoke the truth fearlessly.',
     ],
     moral: 'Standing by the truth calmly.',
-    mustKeep: ['"मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही."'],
+    mustKeep: [
+      '"मी शेंगा खाल्ल्या नाहीत, मी टरफलं उचलणार नाही."',
+      'In the first paragraph make clear that बाळ is the boy\'s NAME ("सगळे त्याला बाळ म्हणायचे"); never use बाळ to mean a baby, and never write "लहान बाळ".',
+    ],
     soften: 'The consequence is mild (sent home / a note to his father). The teacher is not a villain.',
     status: DRAFT,
   },
