@@ -5,6 +5,7 @@ import { GeminiProvider } from '../providers/gemini';
 import { GeminiSpeechSynthesizer } from '../providers/geminiTts';
 import {
   aiStudioAccess,
+  explainGoogleError,
   googleAccessFromEnv,
   hasGoogleAccess,
   parseServiceAccount,
@@ -61,11 +62,11 @@ describe('Google access — Vertex AI', () => {
   it('builds global and regional Vertex URLs (v1beta1 for speech)', () => {
     const g = vertexAccess({ project: 'goshti-prod', apiKey: 'k' });
     expect(g.generateContentUrl('gemini-3.8-flash')).toBe(
-      'https://aiplatform.googleapis.com/v1/projects/goshti-prod/locations/global/publishers/google/models/gemini-3.8-flash:generateContent',
+      'https://aiplatform.googleapis.com/v1/projects/goshti-prod/locations/global/publishers/google/models/gemini-3.8-flash:generateContent?key=k',
     );
     const r = vertexAccess({ project: 'goshti-prod', location: 'asia-south1', apiKey: 'k' });
     expect(r.generateContentUrl('gemini-2.5-flash-tts', { beta: true })).toBe(
-      'https://asia-south1-aiplatform.googleapis.com/v1beta1/projects/goshti-prod/locations/asia-south1/publishers/google/models/gemini-2.5-flash-tts:generateContent',
+      'https://asia-south1-aiplatform.googleapis.com/v1beta1/projects/goshti-prod/locations/asia-south1/publishers/google/models/gemini-2.5-flash-tts:generateContent?key=k',
     );
   });
 
@@ -117,11 +118,22 @@ describe('Google access — Vertex AI', () => {
     expect(hasGoogleAccess({ GOOGLE_CLOUD_PROJECT: 'p', VERTEX_API_KEY: 'v' })).toBe(true);
   });
 
-  it('sends a Vertex API key as a header, never in the URL', async () => {
-    const headers = await vertexAccess({ project: 'p', apiKey: 'vertex-key' }).headers();
-    expect(headers).toEqual({ 'x-goog-api-key': 'vertex-key' });
-    expect(vertexAccess({ project: 'p', apiKey: 'vertex-key' }).generateContentUrl('m')).not.toContain('vertex-key');
+  it('sends a Vertex API key in the query (as Google documents for Vertex), the AI Studio key as a header', async () => {
+    const vertex = vertexAccess({ project: 'p', apiKey: 'vertex key' });
+    expect(await vertex.headers()).toEqual({});
+    expect(vertex.generateContentUrl('m')).toBe(
+      'https://aiplatform.googleapis.com/v1/projects/p/locations/global/publishers/google/models/m:generateContent?key=vertex%20key',
+    );
     expect(await aiStudioAccess('ai-key').headers()).toEqual({ 'x-goog-api-key': 'ai-key' });
+  });
+});
+
+describe('Google error hints', () => {
+  it('explains the common Vertex sign-in mistakes in plain English', () => {
+    expect(explainGoogleError('API keys are not supported by this API. Expected OAuth2 access token')).toMatch(/Authenticate API calls through a service account/);
+    expect(explainGoogleError("Permission 'aiplatform.endpoints.predict' denied")).toMatch(/Vertex AI User/);
+    expect(explainGoogleError('Vertex AI API has not been used in project goshti-prod before or it is disabled')).toMatch(/enable the Vertex AI API/);
+    expect(explainGoogleError('something else')).toBe('something else');
   });
 });
 

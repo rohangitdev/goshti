@@ -38,7 +38,10 @@ export interface GoogleEnv {
   GOOGLE_CLOUD_LOCATION?: string;
   /** Service-account key: the JSON itself, or the JSON base64-encoded (one line — easiest for secrets). */
   GOOGLE_SERVICE_ACCOUNT_JSON?: string;
-  /** Alternative to a service account: a Google Cloud API key allowed to call Vertex AI. */
+  /**
+   * Alternative to a key file: a Google Cloud API key created with "Authenticate API calls through a
+   * service account" ticked (an unbound key is refused: "API keys are not supported by this API").
+   */
   VERTEX_API_KEY?: string;
   /** AI Studio key — developer experiments only (not for the children's app). */
   GEMINI_API_KEY?: string;
@@ -86,9 +89,10 @@ export function vertexAccess(config: VertexConfig): GoogleAccess {
     label: `Vertex AI (${config.project}, ${location})`,
     generateContentUrl: (model, options) =>
       `${vertexHost(location)}/${options?.beta ? 'v1beta1' : 'v1'}/projects/${project}/locations/${location}` +
-      `/publishers/google/models/${encodeURIComponent(model)}:generateContent`,
-    headers: async (): Promise<Record<string, string>> =>
-      tokens ? { Authorization: `Bearer ${await tokens.get()}` } : { 'x-goog-api-key': config.apiKey! },
+      `/publishers/google/models/${encodeURIComponent(model)}:generateContent` +
+      // A Vertex API key (bound to a service account) goes in the query, as in Google's Vertex examples.
+      (tokens ? '' : `?key=${encodeURIComponent(config.apiKey!)}`),
+    headers: async (): Promise<Record<string, string>> => (tokens ? { Authorization: `Bearer ${await tokens.get()}` } : {}),
     invalidate: () => tokens?.invalidate(),
   };
 }
@@ -125,6 +129,20 @@ export function googleAccessFromEnv(env: GoogleEnv, fetchImpl?: typeof fetch): G
   }
   if (env.GEMINI_API_KEY) return aiStudioAccess(env.GEMINI_API_KEY);
   return null;
+}
+
+/** Adds a plain-English fix to Google's common sign-in errors (shown to the developer, never to children). */
+export function explainGoogleError(message: string): string {
+  if (/API keys are not supported by this API/i.test(message)) {
+    return `${message} — this Vertex API key isn't linked to a service account: create a new key with "Authenticate API calls through a service account" ticked (choose goshti-backend), or use the key file instead.`;
+  }
+  if (/aiplatform\.endpoints\.predict|PERMISSION_DENIED|permission denied/i.test(message)) {
+    return `${message} — give the service account the "Vertex AI User" role and make sure the Vertex AI API is enabled (new permissions can take 5–10 minutes).`;
+  }
+  if (/has not been used in project|SERVICE_DISABLED|is disabled/i.test(message)) {
+    return `${message} — enable the Vertex AI API for this project in Google Cloud Console.`;
+  }
+  return message;
 }
 
 /** True when stories and Aaji's voice can reach Gemini (Vertex or AI Studio). */

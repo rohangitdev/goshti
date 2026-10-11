@@ -30,7 +30,7 @@ import {
   type TokenUsage,
   type WriteInput,
 } from '../provider';
-import { aiStudioAccess, type GoogleAccess } from './googleAccess';
+import { aiStudioAccess, explainGoogleError, type GoogleAccess } from './googleAccess';
 import {
   IntentResultSchema,
   AudioDirectionSchema,
@@ -426,7 +426,7 @@ export class GeminiProvider implements StoryAIProvider {
 
         const quotaGone = res.status === 429 && isQuotaExhausted(message);
         const busy = !quotaGone && [429, 500, 502, 503, 504].includes(res.status);
-        if (!quotaGone && !busy) throw new ProviderError('HTTP_ERROR', message, spec.stage);
+        if (!quotaGone && !busy) throw new ProviderError('HTTP_ERROR', explainGoogleError(message), spec.stage);
 
         if (quotaGone) {
           // Retrying is pointless for hours — remember it and move to the next model now.

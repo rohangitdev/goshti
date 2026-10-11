@@ -5,7 +5,7 @@
  */
 import { ProviderError } from '../provider';
 import type { SpeechSynthesizer, TtsChunk } from '../tts';
-import { aiStudioAccess, type GoogleAccess } from './googleAccess';
+import { aiStudioAccess, explainGoogleError, type GoogleAccess } from './googleAccess';
 
 export const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-tts';
 export const DEFAULT_TTS_FALLBACKS = ['gemini-3.8-flash-lite-tts'];
@@ -194,7 +194,7 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
           tried.push(`${model}: ${res.status === 429 ? 'quota / rate limit' : 'busy'}`);
           break; // next model
         }
-        throw new ProviderError('HTTP_ERROR', `${message} (model ${model})`, 'tts');
+        throw new ProviderError('HTTP_ERROR', `${explainGoogleError(message)} (model ${model})`, 'tts');
       }
     }
     if (tried.length && tried.every((t) => t.endsWith('not available'))) {
