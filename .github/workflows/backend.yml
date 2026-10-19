@@ -42,17 +42,20 @@ jobs:
       - name: Is the Supabase token set?
         id: token
         run: |
-          # Spaces or a line break pasted with the token are removed. The token is never printed;
-          # only which KIND of key it looks like.
-          t=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | tr -d '[:space:]')
-          if [ -z "$t" ]; then
+          # Picks the sbp_… token out of whatever was pasted (quotes, spaces, hidden characters).
+          # The value is never printed — only its length and shape when it can't be used.
+          raw="$SUPABASE_ACCESS_TOKEN"
+          t=$(printf '%s' "$raw" | grep -oE 'sbp_[A-Za-z0-9_]{20,}' | head -n 1 || true)
+          if [ -z "$raw" ]; then
             echo "::notice::Not deployed: add the SUPABASE_ACCESS_TOKEN secret to deploy automatically."
-          elif [ "${t#sbp_}" = "$t" ]; then
-            case "$t" in
-              eyJ*|sb_publishable_*|sb_secret_*) kind="a project API key (anon / service_role / publishable / secret)" ;;
-              *) kind="not a Supabase account access token" ;;
-            esac
-            echo "::error title=Wrong Supabase key::SUPABASE_ACCESS_TOKEN looks like $kind. It must be an account access token starting with sbp_ — supabase.com/dashboard/account/tokens"
+          elif [ -z "$t" ]; then
+            len=$(printf '%s' "$raw" | wc -m | tr -d ' ')
+            hint=""
+            case "$raw" in *…*|*•*|*...*) hint="$hint It contains dots — that is the shortened display, not the full token." ;; esac
+            if printf '%s' "$raw" | grep -qiE 'sbp'; then hint="$hint It has sbp in it but not a complete token."; fi
+            if [ "$len" -lt 40 ]; then hint="$hint It is short — probably the token's NAME, not the token."; fi
+            case "$raw" in eyJ*|sb_publishable_*|sb_secret_*) hint="$hint It is a project API key, not an account token." ;; esac
+            echo "::error title=Wrong Supabase key::The saved SUPABASE_ACCESS_TOKEN ($len characters) has no sbp_ token in it.$hint Copy the long value shown once after Generate new token at supabase.com/dashboard/account/tokens."
             exit 1
           else
             echo "::add-mask::$t"
