@@ -54,7 +54,11 @@ jobs:
             case "$raw" in *…*|*•*|*...*) hint="$hint It contains dots — that is the shortened display, not the full token." ;; esac
             if printf '%s' "$raw" | grep -qiE 'sbp'; then hint="$hint It has sbp in it but not a complete token."; fi
             if [ "$len" -lt 40 ]; then hint="$hint It is short — probably the token's NAME, not the token."; fi
-            case "$raw" in eyJ*|sb_publishable_*|sb_secret_*) hint="$hint It is a project API key, not an account token." ;; esac
+            # Which kind of key it is (by its well-known prefix only).
+            if printf '%s' "$raw" | grep -qE 'sb_(publishable|secret)_|eyJ[A-Za-z0-9_-]{10,}'; then hint="$hint It is a Supabase PROJECT API key (anon / service_role / publishable / secret), not an account token."; fi
+            if printf '%s' "$raw" | grep -qE 'AQ\.[A-Za-z0-9_-]|AIza[A-Za-z0-9_-]'; then hint="$hint It looks like a GOOGLE API key (e.g. the Vertex key), not a Supabase token."; fi
+            if printf '%s' "$raw" | grep -qE 'gh[pousr]_|github_pat_'; then hint="$hint It looks like a GITHUB token, not a Supabase token."; fi
+            [ -n "$hint" ] || hint=" It matches no known key type."
             echo "::error title=Wrong Supabase key::The saved SUPABASE_ACCESS_TOKEN ($len characters) has no sbp_ token in it.$hint Copy the long value shown once after Generate new token at supabase.com/dashboard/account/tokens."
             exit 1
           else
