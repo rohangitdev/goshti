@@ -1,0 +1,63 @@
+# Every push to main: check the code, then deploy the story backend (Supabase Edge Function).
+# Deploying needs one secret: SUPABASE_ACCESS_TOKEN (GitHub → Settings → Secrets and variables →
+# Actions). Until it is added, the deploy job only leaves a note. No API keys live here — Vertex
+# and the other backend settings stay in Supabase secrets.
+name: Check and deploy backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Typecheck, lint and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  deploy:
+    name: Deploy story backend to Supabase
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - name: Is the Supabase token set?
+        id: token
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::Not deployed: add the SUPABASE_ACCESS_TOKEN secret to deploy automatically."; fi
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.ok == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.token.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        if: steps.token.outputs.ok == 'true'
+        with:
+          version: latest
+      - name: Build and deploy generate-story
+        if: steps.token.outputs.ok == 'true'
+        run: |
+          npm ci
+          npm run build:function
+          supabase functions deploy generate-story --project-ref okcoskjdspwqnvcilbsf
