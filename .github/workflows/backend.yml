@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -44,9 +44,9 @@ jobs:
         run: |
           if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
           else echo "::notice::Not deployed: add the SUPABASE_ACCESS_TOKEN secret to deploy automatically."; fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.token.outputs.ok == 'true'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.token.outputs.ok == 'true'
         with:
           node-version: 22
@@ -60,4 +60,9 @@ jobs:
         run: |
           npm ci
           npm run build:function
-          supabase functions deploy generate-story --project-ref okcoskjdspwqnvcilbsf
+          set -o pipefail
+          if ! supabase functions deploy generate-story --project-ref okcoskjdspwqnvcilbsf --use-api 2>&1 | tee deploy.log; then
+            # Show the reason as an annotation (readable from the run page and the API).
+            echo "::error title=Supabase deploy failed::$(tail -n 15 deploy.log | sed ':a;N;$!ba;s/\n/%0A/g')"
+            exit 1
+          fi
