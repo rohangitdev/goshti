@@ -42,8 +42,23 @@ jobs:
       - name: Is the Supabase token set?
         id: token
         run: |
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
-          else echo "::notice::Not deployed: add the SUPABASE_ACCESS_TOKEN secret to deploy automatically."; fi
+          # Spaces or a line break pasted with the token are removed. The token is never printed;
+          # only which KIND of key it looks like.
+          t=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | tr -d '[:space:]')
+          if [ -z "$t" ]; then
+            echo "::notice::Not deployed: add the SUPABASE_ACCESS_TOKEN secret to deploy automatically."
+          elif [ "${t#sbp_}" = "$t" ]; then
+            case "$t" in
+              eyJ*|sb_publishable_*|sb_secret_*) kind="a project API key (anon / service_role / publishable / secret)" ;;
+              *) kind="not a Supabase account access token" ;;
+            esac
+            echo "::error title=Wrong Supabase key::SUPABASE_ACCESS_TOKEN looks like $kind. It must be an account access token starting with sbp_ — supabase.com/dashboard/account/tokens"
+            exit 1
+          else
+            echo "::add-mask::$t"
+            echo "SUPABASE_ACCESS_TOKEN=$t" >> "$GITHUB_ENV"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v5
         if: steps.token.outputs.ok == 'true'
       - uses: actions/setup-node@v5
