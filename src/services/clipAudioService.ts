@@ -35,8 +35,11 @@ export class ClipAudioService implements AudioService {
   /** Sound instructions (SFX / ambience / music), timed to Aaji's voice. */
   onCue: ((cue: SoundCue) => void) | null = null;
 
-  /** Called when Aaji's voice can't be played (render failed) — the caller switches to the phone voice. */
-  onUnavailable: (() => void) | null = null;
+  /**
+   * Called when Aaji's voice can't be played (render failed). `atStart`: nothing of this story
+   * has been heard yet — the caller may switch to a ready-made story instead of the phone voice.
+   */
+  onUnavailable: ((atStart: boolean) => void) | null = null;
 
   private title = '';
 
@@ -145,7 +148,7 @@ export class ClipAudioService implements AudioService {
           }, 0);
           return;
         }
-        this.onUnavailable?.();
+        this.onUnavailable?.(this.index === 0);
         return;
       }
       this.emit({ isPlaying: false, waiting: true });

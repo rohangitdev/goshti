@@ -197,17 +197,32 @@ describe('SmartAudioService', () => {
     await smart.load(story);
     expect(smart.getStatus().voice).toBe('phone');
 
-    // a story that is still rendering uses Aaji, then switches when rendering fails
+    // a ready-made (library) story that is still rendering uses Aaji, then the phone voice if it fails
     const ok = setup({ renderChunk: async () => { await tick(5); throw new Error('quota'); } });
-    await ok.voice.start('s2', { token: 't', totalChunks: 2 });
+    await ok.voice.start('lib-s2', { token: 't', totalChunks: 2 });
     const speech2 = fakeSpeech();
     const smart2 = new SmartAudioService(new ClipAudioService(ok.voice), speech2, ok.voice);
-    await smart2.load({ ...story, id: 's2' });
+    await smart2.load({ ...story, id: 'lib-s2' });
     expect(smart2.getStatus().voice).toBe('aaji');
     await smart2.play();
     await tick(60);
     expect(smart2.getStatus().voice).toBe('phone');
     expect(speech2.plays).toBe(1);
+  });
+
+  it('a NEW story whose voice fails before it begins asks for a ready-made story instead (never another voice)', async () => {
+    const bad = setup({ renderChunk: async () => { await tick(5); throw new Error('failed the listening check'); } });
+    await bad.voice.start('s3', { token: 't', totalChunks: 2 });
+    const speech = fakeSpeech();
+    const smart = new SmartAudioService(new ClipAudioService(bad.voice), speech, bad.voice);
+    await smart.load({ ...story, id: 's3' });
+    await smart.play();
+    await tick(60);
+    expect(smart.getStatus()).toMatchObject({ storyId: 's3', voiceUnavailable: true, isPlaying: false });
+    expect(speech.plays).toBe(0);
+    // Loading another story clears it.
+    await smart.load({ ...story, id: 'lib-other' });
+    expect(smart.getStatus().voiceUnavailable).toBeUndefined();
   });
 });
 

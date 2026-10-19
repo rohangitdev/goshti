@@ -67,7 +67,7 @@ Children hear the story once; they cannot re-read a hard word. Use the everyday 
 
 EASY NAMES:
 
-Character names must be easy for a small child to say and remember. For ages 2–5 use short names with NO joined consonants (चिनू, मनू, गोलू, टिकू, सोनू, चंदा) — never names like चंद्रू, क्रिश, श्रेया. Use the names from the plan unless they break this rule.
+Character names must be easy for a small child to say and remember. For ages 2–5 use short names with NO joined consonants (चिनू, मनू, गोलू, टिकू, सोनू, चंदा) — never names like चंद्रू, क्रिश, श्रेया. Use the names from the plan unless they break this rule. (The hero child's own name is never changed.)
 
 SAFETY — NOTHING A CHILD COULD COPY DANGEROUSLY:
 
@@ -185,7 +185,7 @@ Do not abruptly stop.
 
 PERSONALISATION:
 
-If a listener name is supplied, use it naturally at most once or twice (for example Aaji addressing the listener). Never make the child's name do everything in the story.
+When THE HERO is given, the child listening is the story's main character exactly as described there: their own name (spelled as given, even with joined consonants), the right Marathi grammar for a boy or a girl, third person, and always kind, brave and capable.
 
 AUDIO-FIRST:
 

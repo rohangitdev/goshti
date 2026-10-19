@@ -68,12 +68,23 @@ only cancels stories that were mid-generation at that moment.
 ## 5. Check
 
 - `npm run qa -- --suite edge --limit 3`: stories should come back APPROVED.
-- **Listen to Aaji.** Vertex lists its own speech models. The backend first tries the same model
-  as before (`gemini-3.8-flash-tts`). If Vertex doesn't offer it, it falls back to
-  `gemini-3.1-flash-tts-preview`, then `gemini-2.5-flash-tts`, keeping the same **Aoede** voice.
-  If her voice sounds different, that's why. Set `TTS_MODEL` to whichever one you like best.
-- On Vertex each chunk is read with one style. Dialogue inside a chunk gets Aaji's delivery rather
-  than a separate character style; compare by ear.
+- **Listen to Aaji:** `npm run voice-test`. It makes Aaji's voice with each speech model, saves the
+  samples in `voice-tests/` (open that folder and play them) and prints what the listening check
+  heard. Pick the one you like and set `TTS_MODEL` (and the same Supabase secret).
+
+## How Aaji's voice is kept clean
+
+- **Gemini 3.8 speech models read the text field word for word.** So the story text goes in alone,
+  and each line's direction (Aaji's warmth, a character's voice) goes in that part's
+  `speechMetadata.style`. Directions are never put in the text of a 3.8 model — if Google rejects
+  `speechMetadata`, the next model is tried instead.
+- Older speech models (2.5) use Google's documented `"{short prompt}: {text}"` form with the
+  Marathi language code (`mr-IN`) and `[short pause]` tags.
+- **Listening check.** Every part is listened to by `gemini-3.5-flash-lite` before it is sent to the
+  phone: English directions, spoken tags, extra or missing speech, or audio that stops early → the
+  part is made again; if it fails again the request fails. The app then plays one of Aaji's
+  ready-made stories instead (if the story had already started, the phone voice finishes it).
+  The Supabase logs show one `[speech-check]` line per part, with numbers only.
 
 ## How it works (for reference)
 

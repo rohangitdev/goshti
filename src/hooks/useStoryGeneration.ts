@@ -4,6 +4,8 @@ import type { StoryRequest } from '@engine/index';
 import { childProfileService, StoryLimitReachedError, storyService } from '@/services';
 
 export type GenerationState =
+  /** Checking the monthly allowance first — nothing plays yet. */
+  | { status: 'checking' }
   | { status: 'working' }
   | { status: 'done'; storyId: string }
   | { status: 'limit' }
@@ -27,6 +29,12 @@ export function useStoryGeneration(input: Input | null) {
     let active = true;
 
     (async () => {
+      // Out of new stories this month: say so straight away (no waiting song, no "preparing").
+      if (!(await storyService.canCreateStory())) {
+        if (active) setResult({ key, state: { status: 'limit' } });
+        return;
+      }
+      if (active) setResult({ key, state: { status: 'working' } });
       let state: GenerationState;
       try {
         const profile = await childProfileService.getProfile();
@@ -36,6 +44,7 @@ export function useStoryGeneration(input: Input | null) {
           userIdea,
           age: profile?.age ?? 6,
           childName: profile?.name,
+          childGender: profile?.gender,
         }, (label) => {
           if (active) setProgress({ key, label });
         });
@@ -58,7 +67,7 @@ export function useStoryGeneration(input: Input | null) {
     ? { status: 'error' }
     : result?.key === key
       ? result.state
-      : { status: 'working' };
+      : { status: 'checking' };
 
   const progressLabel = progress?.key === key ? progress.label : null;
   /** Always-available fallback: one of Aaji's hand-written library stories. */

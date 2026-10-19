@@ -29,6 +29,8 @@ export type CreateStoryOutcome =
  * The only way the UI gets stories. Screens never talk to the engine, a model or TTS.
  */
 export interface StoryService {
+  /** Can a new story be made right now (monthly allowance)? Checked before anything plays. */
+  canCreateStory(): Promise<boolean>;
   createStory(request: Omit<StoryRequest, 'avoidTitles'>, onProgress?: ProgressListener): Promise<CreateStoryOutcome>;
   listStories(): Promise<GoshtiStory[]>;
   getStory(id: string): Promise<GoshtiStory | null>;
@@ -86,6 +88,10 @@ const SEED_COUNT = 3;
 export class DefaultStoryService implements StoryService {
   constructor(private readonly deps: Deps) {}
 
+  canCreateStory(): Promise<boolean> {
+    return this.deps.subscription.canGenerateStory();
+  }
+
   async createStory(input: Omit<StoryRequest, 'avoidTitles'>, onProgress?: ProgressListener): Promise<CreateStoryOutcome> {
     if (!(await this.deps.subscription.canGenerateStory())) {
       throw new StoryLimitReachedError();
@@ -126,6 +132,7 @@ export class DefaultStoryService implements StoryService {
         category: request.category,
         age: request.age as ChildAge,
         childName: request.childName,
+        childGender: request.childGender,
         avoidTitles: [outcome.story.title, ...recent],
       });
     }
@@ -190,6 +197,7 @@ export class DefaultStoryService implements StoryService {
       category,
       age: profile.age,
       childName: profile.name,
+      childGender: profile.gender,
       avoidTitles: stories.slice(0, 8).map((s) => s.title),
     });
   }

@@ -1,6 +1,6 @@
-import type { AgeBand, AudioScript, ChildAge, StoryCategory } from '@engine/index';
+import type { AgeBand, AudioScript, ChildAge, ChildGender, StoryCategory } from '@engine/index';
 
-export type { AgeBand, ChildAge, StoryCategory };
+export type { AgeBand, ChildAge, ChildGender, StoryCategory };
 
 /** 1–5 parent rating; null until rated. */
 export type StoryRating = 1 | 2 | 3 | 4 | 5;
@@ -31,6 +31,8 @@ export interface ChildProfile {
   name: string;
   /** 2–9 */
   age: ChildAge;
+  /** The child is the hero of their AI stories — Marathi grammar needs boy or girl. */
+  gender?: ChildGender;
 }
 
 export type PlanId = 'FREE' | 'PLUS';

@@ -14,7 +14,7 @@ The input will include:
 - category
 - RANDOM or CUSTOM mode
 - optional child idea
-- optional child first name
+- optional child first name — when given (THE HERO), the child is the main character of the story
 
 Plan specifically for the child's developmental level.
 

@@ -192,6 +192,8 @@ const NOT_FOR_YOUNG = new Set(['science fair', 'museum']);
 
 export interface VarietyIngredients {
   protagonist: string;
+  /** Hero stories: the suggested protagonist becomes the child's companion instead. */
+  companion?: string;
   setting: string;
   plotPattern: string;
   relationship: string;

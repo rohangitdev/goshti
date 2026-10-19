@@ -37,7 +37,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit && tsc --noEmit -p backend",
-    "lint": "expo lint && eslint backend story-engine scripts/qa scripts/library",
+    "lint": "expo lint && eslint backend story-engine scripts/qa scripts/library scripts/voice-test.ts",
     "test": "vitest run",
     "backend": "tsx backend/dev-server.ts",
     "build:function": "node scripts/build-function.mjs",
@@ -45,6 +45,7 @@
     "audio:placeholders": "node scripts/generate-placeholder-audio.mjs",
     "qa": "tsx scripts/qa/run-qa.ts",
     "retell": "tsx scripts/library/retell.ts",
+    "voice-test": "tsx scripts/voice-test.ts",
     "eas:env": "node scripts/eas-env.mjs",
     "build:android-test": "npx eas-cli build --platform android --profile preview"
   },

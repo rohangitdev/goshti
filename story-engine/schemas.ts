@@ -54,6 +54,9 @@ export type StoryMode = (typeof STORY_MODES)[number];
 // StoryRequest (from the app — validated, never trusted)
 // ---------------------------------------------------------------------------
 
+export const CHILD_GENDERS = ['BOY', 'GIRL'] as const;
+export type ChildGender = (typeof CHILD_GENDERS)[number];
+
 export const MAX_IDEA_LENGTH = 200;
 export const MAX_NAME_LENGTH = 30;
 
@@ -67,6 +70,8 @@ export const StoryRequestSchema = z
     mode: z.enum(STORY_MODES),
     userIdea: z.string().max(MAX_IDEA_LENGTH).optional(),
     childName: z.string().max(MAX_NAME_LENGTH).optional(),
+    /** For Marathi grammar when the child is the story's hero (गेला / गेली). */
+    childGender: z.enum(CHILD_GENDERS).optional(),
     /** Light personalisation; optional. */
     interests: z.array(z.string().max(40)).max(5).optional(),
     favouriteAnimals: z.array(z.string().max(40)).max(5).optional(),

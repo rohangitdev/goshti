@@ -4,6 +4,6 @@
     "types": ["node"],
     "lib": ["es2023", "dom"]
   },
-  "include": ["./**/*.ts", "../story-engine/**/*.ts", "../scripts/qa/**/*.ts", "../scripts/library/**/*.ts", "../vitest.config.mts"],
+  "include": ["./**/*.ts", "../story-engine/**/*.ts", "../scripts/qa/**/*.ts", "../scripts/library/**/*.ts", "../scripts/voice-test.ts", "../vitest.config.mts"],
   "exclude": []
 }

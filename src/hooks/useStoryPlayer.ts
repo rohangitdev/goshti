@@ -10,8 +10,15 @@ import {
 } from '@/services';
 import type { GoshtiStory } from '@/types/models';
 
-export function useStoryPlayer(storyId: string | undefined) {
+/**
+ * @param autoplay start playing as soon as the story is loaded (used when the player switches
+ *   to a ready-made story after the child already pressed play).
+ */
+export function useStoryPlayer(storyId: string | undefined, options: { autoplay?: boolean } = {}) {
   const [loaded, setLoaded] = useState<{ id: string; story: GoshtiStory | null } | null>(null);
+  /** A ready-made story to switch to when Aaji's voice couldn't be made for this one. */
+  const [replacementId, setReplacementId] = useState<string | null>(null);
+  const autoplay = !!options.autoplay;
   const [isFavourite, setIsFavourite] = useState(false);
   const [reaction, setReactionState] = useState<StoryReaction | null>(null);
   const [status, setStatus] = useState<PlaybackStatus>(audioService.getStatus());
@@ -41,14 +48,30 @@ export function useStoryPlayer(storyId: string | undefined) {
         await audioService.load(found);
       }
       if (active) setLoaded({ id: storyId, story: found });
+      if (active && found && autoplay) await audioService.play();
     })();
     return () => {
       active = false;
       audioService.unload();
     };
-  }, [storyId]);
+  }, [storyId, autoplay]);
 
   const story = loaded && loaded.id === storyId ? loaded.story : null;
+
+  // Aaji's voice couldn't be made (cleanly) for this new story: never read it in another
+  // voice or play anything odd — switch to one of Aaji's ready-made stories instead.
+  const unavailable = !!(story && status.voiceUnavailable && status.storyId === story.id);
+  useEffect(() => {
+    if (!unavailable || !story) return;
+    let active = true;
+    storyService
+      .playFromLibrary({ age: story.age, category: story.category })
+      .then((lib) => active && setReplacementId(lib.id))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [unavailable, story]);
   const notFound = !storyId || (loaded?.id === storyId && loaded.story === null);
 
   const togglePlay = useCallback(() => {
@@ -75,5 +98,17 @@ export function useStoryPlayer(storyId: string | undefined) {
 
   const progress = status.durationSeconds > 0 ? status.positionSeconds / status.durationSeconds : 0;
 
-  return { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite, reaction, setReaction };
+  return {
+    story,
+    notFound,
+    status,
+    progress,
+    isFavourite,
+    togglePlay,
+    toggleFavourite,
+    reaction,
+    setReaction,
+    /** Set when the player should switch to this ready-made story. */
+    replacementId: replacementId && replacementId !== storyId ? replacementId : null,
+  };
 }

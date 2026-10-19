@@ -1,6 +1,9 @@
 /**
  * Gemini text-to-speech — BACKEND ONLY. One request per TtsChunk.
- * - Vertex AI (the app): generateContent on a speech model; one performance style per chunk.
+ * - Vertex AI (the app): generateContent on a speech model.
+ *   Gemini 3.8+ speech models read the text field VERBATIM, so Aaji's directions go in each
+ *   part's `speechMetadata.style` — never in the text (or she reads them out loud).
+ *   Older speech models (3.1 / 2.5) take Google's documented "{prompt}: {text}" form instead.
  * - AI Studio (experiments): the Interactions API; each line carries its own style.
  */
 import { ProviderError } from '../provider';
@@ -9,8 +12,23 @@ import { aiStudioAccess, explainGoogleError, type GoogleAccess } from './googleA
 
 export const DEFAULT_TTS_MODEL = 'gemini-3.8-flash-tts';
 export const DEFAULT_TTS_FALLBACKS = ['gemini-3.8-flash-lite-tts'];
-/** On Vertex AI: try the same model as AI Studio first, then the speech models Google Cloud lists. */
-export const VERTEX_TTS_FALLBACKS = ['gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-tts'];
+/** On Vertex AI: the same model as AI Studio first, then the older speech models Google Cloud lists. */
+export const VERTEX_TTS_FALLBACKS = ['gemini-3.8-flash-lite-tts', 'gemini-2.5-flash-tts'];
+
+/** Short direction for older speech models, which take "{prompt}: {text}" (Google's documented form). */
+export const PREFIX_PROMPT = 'Read this Marathi story aloud slowly and warmly, like a loving grandmother telling it to a small child';
+
+/** Gemini 3.8 and newer read `text` verbatim and take directions in speechMetadata. */
+export function readsTextVerbatim(model: string): boolean {
+  const m = /^gemini-(\d+)(?:\.(\d+))?/.exec(model);
+  if (!m) return false;
+  return Number(m[1]) * 100 + Number(m[2] ?? 0) >= 308;
+}
+
+/** Older models use [square-bracket] pause tags; 3.8+ use <angle-bracket> tags. */
+export function toBracketTags(text: string): string {
+  return text.replace(/<(short pause|medium pause|long pause)>/g, '[$1]');
+}
 export const DEFAULT_TTS_VOICE = 'Aoede';
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
@@ -110,16 +128,23 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
     return [primary, ...fallbacks.filter((m) => m !== primary)];
   }
 
-  /** Vertex AI: "{style}: {text}" to a speech model, with Aaji's prebuilt voice. */
-  private vertexBody(chunk: TtsChunk, voice: string) {
-    const style = chunk.parts[0]?.style ?? '';
-    const text = chunk.parts.map((p) => p.text).join(' ');
+  /**
+   * Vertex AI request with Aaji's prebuilt voice.
+   * - 3.8+: the story text alone in `text`, each line's direction in `speechMetadata.style`.
+   * - older: Google's documented "{short prompt}: {text}", Marathi language code, [pause] tags.
+   */
+  vertexBody(model: string, chunk: TtsChunk, voice: string) {
+    const voiceConfig = { prebuiltVoiceConfig: { voiceName: voice } };
+    if (readsTextVerbatim(model)) {
+      return {
+        contents: [{ role: 'user', parts: chunk.parts.map((p) => ({ text: p.text, speechMetadata: { style: p.style } })) }],
+        generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig } },
+      };
+    }
+    const text = toBracketTags(chunk.parts.map((p) => p.text).join(' '));
     return {
-      contents: [{ role: 'user', parts: [{ text: style ? `${style}: ${text}` : text }] }],
-      generationConfig: {
-        responseModalities: ['AUDIO'],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-      },
+      contents: [{ role: 'user', parts: [{ text: `${PREFIX_PROMPT}: ${text}` }] }],
+      generationConfig: { responseModalities: ['AUDIO'], speechConfig: { languageCode: 'mr-IN', voiceConfig } },
     };
   }
 
@@ -157,7 +182,7 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
           res = await this.fetchImpl(vertex ? this.access.generateContentUrl(model, { beta: true }) : ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...auth },
-            body: JSON.stringify(vertex ? this.vertexBody(chunk, voice) : this.body(model, chunk, voice)),
+            body: JSON.stringify(vertex ? this.vertexBody(model, chunk, voice) : this.body(model, chunk, voice)),
             signal: controller.signal,
           });
         } catch (e) {
@@ -185,6 +210,12 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
           tried.push(`${model}: not available`);
           break;
         }
+        // A verbatim model that won't take speechMetadata here: never fall back to putting directions
+        // in its text (it would read them out) — move on to the next model instead.
+        if (vertex && res.status === 400 && readsTextVerbatim(model) && /speech_?metadata|unknown name|invalid json payload/i.test(message)) {
+          tried.push(`${model}: no speechMetadata`);
+          break;
+        }
         // If per-line styles aren't accepted, retry once with a single styled text.
         if (!vertex && res.status === 400 && this.perLineStyles && attempt === 0) {
           this.perLineStyles = false;
@@ -197,7 +228,7 @@ export class GeminiSpeechSynthesizer implements SpeechSynthesizer {
         throw new ProviderError('HTTP_ERROR', `${explainGoogleError(message)} (model ${model})`, 'tts');
       }
     }
-    if (tried.length && tried.every((t) => t.endsWith('not available'))) {
+    if (tried.length && tried.every((t) => t.endsWith('not available') || t.endsWith('no speechMetadata'))) {
       throw new ProviderError('HTTP_ERROR', `No speech model available here (${tried.join('; ')}) — set TTS_MODEL`, 'tts');
     }
     throw new ProviderError('QUOTA_EXHAUSTED', `Text-to-speech unavailable (${tried.join('; ')})`, 'tts');

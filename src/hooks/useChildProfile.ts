@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { childProfileService } from '@/services';
-import type { ChildAge, ChildProfile } from '@/types/models';
+import type { ChildAge, ChildGender, ChildProfile } from '@/types/models';
 
 export function useChildProfile() {
   const [profile, setProfile] = useState<ChildProfile | null>(null);
@@ -20,7 +20,7 @@ export function useChildProfile() {
     };
   }, []);
 
-  const save = useCallback(async (input: { name: string; age: ChildAge }) => {
+  const save = useCallback(async (input: { name: string; age: ChildAge; gender?: ChildGender }) => {
     const saved = await childProfileService.saveProfile(input);
     setProfile(saved);
     return saved;

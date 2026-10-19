@@ -45,6 +45,7 @@ export function validateStoryRequest(input: unknown): RequestValidation {
     mode,
     userIdea: mode === 'CUSTOM' ? sanitizeText(raw.userIdea, MAX_IDEA_LENGTH) : undefined,
     childName: sanitizeName(raw.childName),
+    childGender: raw.childGender === 'BOY' || raw.childGender === 'GIRL' ? raw.childGender : undefined,
     interests: sanitizeList(raw.interests, 5, 40),
     favouriteAnimals: sanitizeList(raw.favouriteAnimals, 5, 40),
     avoidTitles: sanitizeList(raw.avoidTitles, 12, 120),

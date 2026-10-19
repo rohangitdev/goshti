@@ -46,6 +46,8 @@ const ENV_KEYS = [
   'TTS_FALLBACK_MODEL',
   'TTS_VOICE',
   'TTS_STYLE',
+  'TTS_CHECK',
+  'TTS_CHECK_MODEL',
 ];
 
 Deno.serve(async (req: Request) => {

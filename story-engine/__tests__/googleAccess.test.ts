@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ProviderError } from '../provider';
 import { GeminiProvider } from '../providers/gemini';
-import { GeminiSpeechSynthesizer } from '../providers/geminiTts';
+import { GeminiSpeechSynthesizer, PREFIX_PROMPT, readsTextVerbatim } from '../providers/geminiTts';
 import {
   aiStudioAccess,
   explainGoogleError,
@@ -182,7 +182,7 @@ describe("Aaji's voice through Vertex AI", () => {
   } as unknown as TtsChunk;
   const pcm = btoa(String.fromCharCode(...new Uint8Array(4800)));
 
-  it('uses a speech model with the prebuilt voice, tries the next model if one is missing, and returns WAV', async () => {
+  it('gives Gemini 3.8 the story text alone, with directions in speechMetadata (never read aloud)', async () => {
     const { fetchImpl, calls } = fakeGoogle([
       () => json({ error: { message: 'not found' } }, 404),
       () => json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: pcm } }] } }] }),
@@ -191,12 +191,49 @@ describe("Aaji's voice through Vertex AI", () => {
     const out = await tts.synthesize(chunk, 'Aoede');
     expect(out.mimeType).toBe('audio/wav');
     expect(out.base64.startsWith('UklGR')).toBe(true);
-    expect(out.model).toBe('gemini-3.1-flash-tts-preview');
+    expect(out.model).toBe('gemini-3.8-flash-lite-tts');
     expect(calls[0].url).toContain('/v1beta1/projects/p/locations/global/publishers/google/models/gemini-3.8-flash-tts:generateContent');
     const body = JSON.parse(calls[1].body);
     expect(body.generationConfig.responseModalities).toEqual(['AUDIO']);
     expect(body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe('Aoede');
-    expect(body.contents[0].parts[0].text).toBe('Warm, slow grandmother storyteller: एक होता हत्ती. "मला चंद्रावर जायचंय!"');
+    expect(body.contents[0].parts).toEqual([
+      { text: 'एक होता हत्ती.', speechMetadata: { style: 'Warm, slow grandmother storyteller' } },
+      { text: '"मला चंद्रावर जायचंय!"', speechMetadata: { style: 'Excited little elephant' } },
+    ]);
+    // Nothing but the story goes in the spoken text.
+    for (const part of body.contents[0].parts) expect(part.text).not.toMatch(/grandmother|elephant/i);
+  });
+
+  it('older speech models get the short documented prompt, Marathi language code and [pause] tags', async () => {
+    const { fetchImpl, calls } = fakeGoogle([
+      () => json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: pcm } }] } }] }),
+    ]);
+    const tts = new GeminiSpeechSynthesizer({ access: vertexAccess({ project: 'p', apiKey: 'v' }), model: 'gemini-2.5-flash-tts', fetchImpl });
+    await tts.synthesize({ ...chunk, parts: [{ text: 'एक होता हत्ती. <short pause> तो मोठा होता.', style: 'x' }] }, 'Aoede');
+    const body = JSON.parse(calls[0].body);
+    expect(body.contents[0].parts[0].text).toBe(`${PREFIX_PROMPT}: एक होता हत्ती. [short pause] तो मोठा होता.`);
+    expect(body.generationConfig.speechConfig.languageCode).toBe('mr-IN');
+  });
+
+  it('never falls back to putting directions in a 3.8 model\'s text — it moves to the next model', async () => {
+    const { fetchImpl, calls } = fakeGoogle([
+      () => json({ error: { message: 'Invalid JSON payload received. Unknown name "speechMetadata"' } }, 400),
+      () => json({ error: { message: 'Invalid JSON payload received. Unknown name "speechMetadata"' } }, 400),
+      () => json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data: pcm } }] } }] }),
+    ]);
+    const tts = new GeminiSpeechSynthesizer({ access: vertexAccess({ project: 'p', apiKey: 'v' }), fetchImpl });
+    const out = await tts.synthesize(chunk, 'Aoede');
+    expect(out.model).toBe('gemini-2.5-flash-tts');
+    expect(calls).toHaveLength(3);
+    for (const c of calls.slice(0, 2)) expect(JSON.parse(c.body).contents[0].parts[0].text).toBe('एक होता हत्ती.');
+  });
+
+  it('knows which speech models read their text verbatim', () => {
+    expect(readsTextVerbatim('gemini-3.8-flash-tts')).toBe(true);
+    expect(readsTextVerbatim('gemini-3.8-flash-lite-tts')).toBe(true);
+    expect(readsTextVerbatim('gemini-4-flash-tts')).toBe(true);
+    expect(readsTextVerbatim('gemini-3.1-flash-tts-preview')).toBe(false);
+    expect(readsTextVerbatim('gemini-2.5-pro-tts')).toBe(false);
   });
 
   it('says clearly when no speech model is available', async () => {

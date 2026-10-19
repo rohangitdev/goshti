@@ -16,6 +16,7 @@ import type { StoryLogger } from './logging';
 import { resolveProfile, type ChildAge } from './profiles';
 import { ProviderError, type ProviderErrorCode, type StoryAIProvider } from './provider';
 import { inventedNames, type RetellingSource } from './retellings';
+import { heroChecks, heroNameInStory, isHeroRequest } from './hero';
 import { validateStoryRequest } from './request';
 import { StoryPlanSchema, type StoryRequest } from './schemas';
 import { MESSAGES, type PipelineResult, type StageName, type StoryTrace } from './types';
@@ -95,7 +96,8 @@ export function startPipeline(
     options.logger?.log(trace);
     return { result: { status: 'INVALID_REQUEST', errors: validation.errors, trace } };
   }
-  const request = validation.value;
+  // A retelling keeps its traditional hero — the child's name is not used.
+  const request = options.retell ? { ...validation.value, childName: undefined, childGender: undefined } : validation.value;
   trace.normalizedRequest = request;
   const profile = resolveProfile(request.age);
   trace.profile = profile;
@@ -119,11 +121,16 @@ export function startPipeline(
 
   const all = pickIngredients(request, profile, options.rng);
   // A retelling keeps its own characters and plot — only the humour style is suggested.
-  const ingredients: Partial<VarietyIngredients> = retell
+  let ingredients: Partial<VarietyIngredients> = retell
     ? { humourStyle: all.humourStyle }
     : request.mode === 'RANDOM'
       ? all
       : { humourStyle: all.humourStyle, positiveValue: all.positiveValue };
+  // The child is the hero: the suggested protagonist joins them as a companion.
+  if (isHeroRequest(request) && ingredients.protagonist) {
+    const { protagonist, ...rest } = ingredients;
+    ingredients = { ...rest, companion: protagonist };
+  }
   trace.varietyIngredients = ingredients as Record<string, string>;
 
   let phase: PipelinePhase = 'CLASSIFY';
@@ -237,7 +244,10 @@ export async function advancePipeline(
           const story = trace.drafts[trace.drafts.length - 1].story;
           const evaluation = await timed(() => provider.evaluateStory({ request, profile, plan, story, retell }));
           // A retelling's traditional names (कृष्ण, ध्रुव…) are kept even if hard to say.
-          const keep = retell?.keepNames ?? [];
+          const keep = [...(retell?.keepNames ?? [])];
+          const hero = isHeroRequest(request);
+          // The child's own name is never "hard to say" — it's theirs.
+          if (hero) keep.push(heroNameInStory(request, plan), request.childName!);
           const planNames = [plan.mainCharacter.name, ...plan.supportingCharacters.map((c) => c.name)];
           const local = localStoryChecks(story, profile, {
             enforceLength: options.enforceLength ?? true,
@@ -245,6 +255,8 @@ export async function advancePipeline(
             age: request.age,
             characterNames: planNames.filter((n) => !keep.some((k) => k.includes(n) || n.includes(k))),
           });
+          // (The offline mock's fixed templates can't star the child, so it isn't held to this.)
+          if (hero && provider.name !== 'mock') local.push(...heroChecks(request, plan, story.storyText));
           const invented = retell ? inventedNames(retell, planNames, story.storyText) : [];
           if (invented.length) {
             local.push(`invented named character(s) in a story about a real person — keep them unnamed (एक मित्र, वर्गातली मुलं): ${invented.join(', ')}`);

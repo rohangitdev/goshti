@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { getCategory } from '@engine/index';
@@ -20,11 +20,16 @@ import { sceneFor } from '@/utils/scene';
 
 /** 6. Story Player — audio first; the story text is intentionally not shown. */
 export default function StoryPlayerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, autoplay } = useLocalSearchParams<{ id: string; autoplay?: string }>();
   // Chosen when the story opens, so the picture never changes mid-story.
   const [openedAt] = useState(() => new Date());
-  const { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite, reaction, setReaction } =
-    useStoryPlayer(id);
+  const { story, notFound, status, progress, isFavourite, togglePlay, toggleFavourite, reaction, setReaction, replacementId } =
+    useStoryPlayer(id, { autoplay: autoplay === '1' });
+
+  // Aaji's voice couldn't be made for this story: play one of her ready-made stories instead.
+  useEffect(() => {
+    if (replacementId) router.replace({ pathname: '/story/[id]', params: { id: replacementId, autoplay: '1' } });
+  }, [replacementId]);
 
   if (notFound) {
     return (

@@ -97,6 +97,17 @@ export default function GeneratingScreen() {
     );
   }
 
+  // A moment while the allowance is checked: Aaji only — no song, no "preparing" yet.
+  if (state.status === 'checking') {
+    return (
+      <Screen>
+        <View style={styles.center}>
+          <AajiIllustration size={220} scene={sceneFor(isStoryCategory(params.category) ? params.category : undefined)} />
+        </View>
+      </Screen>
+    );
+  }
+
   if (state.status === 'error') {
     return (
       <Screen

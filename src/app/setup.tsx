@@ -2,10 +2,10 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, TextInput, View } from 'react-native';
 
-import { AgeSelector, AppText, BackButton, BigButton, Screen } from '@/components';
+import { AgeSelector, AppText, BackButton, BigButton, GenderSelector, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
 import { MAX_CHILD_NAME_LENGTH } from '@/services/childProfileService';
-import type { ChildAge, ChildProfile } from '@/types/models';
+import type { ChildAge, ChildGender, ChildProfile } from '@/types/models';
 import { colors, radius, spacing, touch, type as typography } from '@/theme';
 
 /** 2. Child Setup — also used from Parent mode to edit the profile. */
@@ -17,20 +17,21 @@ export default function SetupScreen() {
 
 interface FormProps {
   initial: ChildProfile | null;
-  onSave: (input: { name: string; age: ChildAge }) => Promise<unknown>;
+  onSave: (input: { name: string; age: ChildAge; gender: ChildGender }) => Promise<unknown>;
 }
 
 function SetupForm({ initial, onSave: save }: FormProps) {
   const [name, setName] = useState(initial?.name ?? '');
   const [age, setAge] = useState<ChildAge | null>(initial?.age ?? null);
+  const [gender, setGender] = useState<ChildGender | null>(initial?.gender ?? null);
   const [saving, setSaving] = useState(false);
 
-  const canSave = name.trim().length > 0 && age !== null && !saving;
+  const canSave = name.trim().length > 0 && age !== null && gender !== null && !saving;
 
   const onSave = async () => {
-    if (!canSave || age === null) return;
+    if (!canSave || age === null || gender === null) return;
     setSaving(true);
-    await save({ name, age });
+    await save({ name, age, gender });
     router.dismissTo('/home');
   };
 
@@ -51,6 +52,10 @@ function SetupForm({ initial, onSave: save }: FormProps) {
             style={styles.input}
             accessibilityLabel="मुलाचं नाव"
           />
+        </View>
+        <View style={styles.section}>
+          <AppText variant="title">तू मुलगा आहेस की मुलगी?</AppText>
+          <GenderSelector value={gender} onChange={setGender} />
         </View>
         <View style={styles.section}>
           <AppText variant="title">तुझं वय किती?</AppText>

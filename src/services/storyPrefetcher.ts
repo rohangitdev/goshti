@@ -7,7 +7,7 @@
  * - Stories prepared for a different age are discarded.
  * - Only RANDOM stories: a child's own idea must always be generated live.
  */
-import type { ApprovedStory, ChildAge, StoryCategory } from '@engine/index';
+import type { ApprovedStory, ChildAge, ChildGender, StoryCategory } from '@engine/index';
 
 import { createId } from '@/utils/id';
 
@@ -70,14 +70,14 @@ export class RandomStoryPrefetcher {
   }
 
   /** Fire-and-forget: prepare one story for this category if there's room. Never throws. */
-  prepare(input: { category: StoryCategory; age: ChildAge; childName?: string; avoidTitles?: string[] }): void {
+  prepare(input: { category: StoryCategory; age: ChildAge; childName?: string; childGender?: ChildGender; avoidTitles?: string[] }): void {
     if (this.deps.generator.kind !== 'backend') return; // mock stories are instant anyway
     if (this.inFlight.has(input.category)) return;
     this.inFlight.add(input.category);
     void this.run(input).finally(() => this.inFlight.delete(input.category));
   }
 
-  private async run(input: { category: StoryCategory; age: ChildAge; childName?: string; avoidTitles?: string[] }) {
+  private async run(input: { category: StoryCategory; age: ChildAge; childName?: string; childGender?: ChildGender; avoidTitles?: string[] }) {
     try {
       const pool = await this.pool(input.age);
       if (pool[input.category] || Object.keys(pool).length >= MAX_READY) return;
@@ -89,6 +89,7 @@ export class RandomStoryPrefetcher {
         category: input.category,
         mode: 'RANDOM',
         childName: input.childName,
+        childGender: input.childGender,
         avoidTitles: avoid.slice(0, 12),
       });
       if (result.status !== 'APPROVED') return;

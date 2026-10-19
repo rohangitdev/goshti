@@ -9,6 +9,7 @@ import { RandomStoryPrefetcher, type PreparedPool } from '../storyPrefetcher';
 import { DefaultStoryService } from '../storyService';
 import { LocalSubscriptionService } from '../subscriptionService';
 import { MockTtsService } from '../ttsService';
+import { ChildProfileService } from '../childProfileService';
 
 function memoryStorage(): StorageService {
   let profile: ChildProfile | null = { id: 'c', name: 'आर्या', age: 6 };
@@ -181,5 +182,37 @@ describe('library fallback', () => {
     const stories = await service.listStories();
     expect(stories.length).toBe(3);
     expect(stories.every((s) => s.id.startsWith('lib-'))).toBe(true);
+  });
+});
+
+describe('the child as the hero (app side)', () => {
+  it('sends the child’s name and boy/girl with prepared stories', async () => {
+    const { service, storage, generator } = setup();
+    await storage.saveChildProfile({ id: 'c', name: 'आर्या', age: 6, gender: 'GIRL' });
+    await service.createStory({ age: 6, category: 'mystery', mode: 'CUSTOM', userIdea: 'घड्याळ उलटं चालतं' });
+    await service.warmUp();
+    await settle();
+    expect(generator.calls.at(-1)).toMatchObject({ childName: 'आर्या', childGender: 'GIRL', mode: 'RANDOM' });
+  });
+
+  it('drops stories prepared for the old name when the parent changes the name or boy/girl', async () => {
+    const { storage, prefetcher } = setup();
+    const profiles = new ChildProfileService(storage);
+    await profiles.saveProfile({ name: 'आर्या', age: 6, gender: 'GIRL' });
+    prefetcher.prepare({ category: 'space', age: 6, childName: 'आर्या', childGender: 'GIRL' });
+    await settle();
+    expect(Object.keys(await storage.getPreparedStories())).toEqual(['space']);
+    await profiles.saveProfile({ name: 'आर्या', age: 7 });
+    expect((await storage.getChildProfile())?.gender).toBe('GIRL'); // kept when not given
+    expect(Object.keys(await storage.getPreparedStories())).toEqual(['space']);
+    await profiles.saveProfile({ name: 'सई', age: 7, gender: 'GIRL' });
+    expect(await storage.getPreparedStories()).toEqual({});
+  });
+
+  it('knows before anything plays whether a new story can be made this month', async () => {
+    const { service, subscription } = setup();
+    expect(await service.canCreateStory()).toBe(true);
+    for (let i = 0; i < 5; i++) await subscription.recordStoryGenerated();
+    expect(await service.canCreateStory()).toBe(false);
   });
 });

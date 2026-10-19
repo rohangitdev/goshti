@@ -4,6 +4,7 @@ export { AppText } from './AppText';
 export { BackButton } from './BackButton';
 export { BigButton } from './BigButton';
 export { CategoryTile } from './CategoryTile';
+export { GenderSelector } from './GenderSelector';
 export { PlanCard } from './PlanCard';
 export { ProgressBar } from './ProgressBar';
 export { RoundButton } from './RoundButton';

@@ -16,6 +16,11 @@ export interface PlaybackStatus {
   waiting?: boolean;
   /** The GOSHTI signature is playing before the story. */
   intro?: boolean;
+  /**
+   * Aaji's voice couldn't be made (cleanly) for this new story before it began. The player
+   * switches to one of Aaji's ready-made stories rather than reading this one in another voice.
+   */
+  voiceUnavailable?: boolean;
 }
 
 export type PlaybackListener = (status: PlaybackStatus) => void;

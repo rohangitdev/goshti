@@ -9,6 +9,7 @@
  * A different provider (Google Cloud, Azure, …) can be added by implementing TTSProvider.
  */
 import type { NarratorEmotion, VoiceStyle } from './schemas';
+import type { SpeechCheckReport } from './speechCheck';
 import {
   DEFAULT_AAJI_STYLE,
   dialogueStyle,
@@ -21,6 +22,8 @@ export interface SynthesizedAudio {
   mimeType: string;
   base64: string;
   model: string;
+  /** How the part was checked before it was returned (numbers only). */
+  check?: SpeechCheckReport;
 }
 
 export interface NarrationRequest {

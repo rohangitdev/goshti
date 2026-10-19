@@ -15,6 +15,8 @@
 import { ProviderError } from '../story-engine/provider';
 import { googleAccessFromEnv, hasGoogleAccess, type GoogleEnv } from '../story-engine/providers/googleAccess';
 import { DEFAULT_TTS_VOICE, GeminiSpeechSynthesizer } from '../story-engine/providers/geminiTts';
+import { GeminiSpeechListener } from '../story-engine/providers/geminiListen';
+import { CheckedSpeechSynthesizer } from '../story-engine/speechCheck';
 import { AUDITION_CHUNK, AUDITION_VOICES, buildTtsChunks, DEFAULT_AAJI_STYLE } from '../story-engine/tts';
 import { resolveAajiVoice, SynthesizerTTSProvider, type TTSProvider } from '../story-engine/ttsProvider';
 import { findLibraryStory, libraryAudioScript } from '../story-engine/library';
@@ -28,6 +30,13 @@ export interface TtsEnv extends GoogleEnv {
   TTS_VOICE?: string;
   /** Override Aaji's base voice direction. */
   TTS_STYLE?: string;
+  /**
+   * Listening check on every rendered part (see story-engine/speechCheck.ts). On by default;
+   * "off" keeps only the length check — for diagnosis, never for the children's app.
+   */
+  TTS_CHECK?: string;
+  /** Model that listens to the audio (default gemini-3.5-flash-lite). */
+  TTS_CHECK_MODEL?: string;
   STORY_STATE_SECRET?: string;
 }
 
@@ -69,12 +78,20 @@ export async function issueAudioToken(title: string, script: AudioScript, env: T
   return { audioToken: token, audioChunks: chunksFor(script, env, age).length, ttsAvailable: hasGoogleAccess(env) };
 }
 
-/** The TTS provider behind Aaji's voice. Swap providers here (the app is unaffected). */
-export function createTtsProvider(env: TtsEnv): TTSProvider {
+/**
+ * The TTS provider behind Aaji's voice. Swap providers here (the app is unaffected).
+ * Every part is checked (length + listening) before it leaves the backend.
+ */
+export function createTtsProvider(env: TtsEnv, log: (line: string) => void = console.log): TTSProvider {
   const access = googleAccessFromEnv(env);
   if (!access) throw new ProviderError('NOT_CONFIGURED', 'text-to-speech is not configured (set up Vertex AI)');
+  const listener = env.TTS_CHECK === 'off' ? null : new GeminiSpeechListener({ access, model: env.TTS_CHECK_MODEL });
   return new SynthesizerTTSProvider(
-    new GeminiSpeechSynthesizer({ access, model: env.TTS_MODEL, fallbackModels: env.TTS_FALLBACK_MODEL }),
+    new CheckedSpeechSynthesizer(
+      new GeminiSpeechSynthesizer({ access, model: env.TTS_MODEL, fallbackModels: env.TTS_FALLBACK_MODEL }),
+      listener,
+      { log },
+    ),
     env.TTS_STYLE || DEFAULT_AAJI_STYLE,
   );
 }
@@ -87,6 +104,7 @@ export function isTtsAction(body: unknown): boolean {
 export async function handleTts(
   body: unknown,
   env: TtsEnv,
+  log?: (line: string) => void,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const b = (body ?? {}) as { action?: string; voice?: unknown; audioToken?: unknown; chunk?: unknown; id?: unknown; age?: unknown };
   const voice = resolveAajiVoice(b.voice, env.TTS_VOICE || DEFAULT_TTS_VOICE);
@@ -107,7 +125,7 @@ export async function handleTts(
   }
 
   try {
-    const tts = createTtsProvider(env);
+    const tts = createTtsProvider(env, log);
     if (b.action === 'tts-audition') {
       const t0 = Date.now();
       const audio = await tts.synthesizeScene(AUDITION_CHUNK, voice);
