@@ -13,3 +13,15 @@ ffmpeg -i song-mix.wav -af "highpass=f=60,loudnorm=I=-18:TP=-1.5:LRA=11" -c:a aa
 
 The accompaniment's chord changes are timed to the current song's phrases; a new song needs new
 timings in `accompaniment.py`. Raw recordings are not kept in the repository.
+
+## Flute (original, synthesised — no samples)
+
+`flute.py` is a small bansuri-style flute synthesiser; `waiting_flute.py` writes GOSHTI's own flute
+part over the waiting song (opening, a reply after line 1, a rising counter-melody under line 3,
+a lifting ending) and an 8-bar flute waiting loop:
+
+```
+ffmpeg -i assets/audio/signature/goshti-waiting-song.m4a -ac 1 -ar 44100 song.wav
+cd scripts/audio && python3 waiting_flute.py ../../song.wav ../..     # needs numpy, scipy, soundfile
+```
+All melodies are written for GOSHTI; nothing is taken from existing music.
