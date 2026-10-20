@@ -59,3 +59,7 @@ voice-tests/
 *service-account*.json
 *-sa-key.json
 vertex-key*.json
+
+# Python bytecode from the audio scripts
+__pycache__/
+*.pyc
