@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { isStoryCategory, type StoryMode } from '@engine/index';
 import { AajiIllustration, AppText, BigButton, Screen } from '@/components';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
-import { uiSoundService } from '@/services';
+import { subscriptionService, uiSoundService } from '@/services';
 import { colors } from '@/theme';
 import { sceneFor } from '@/utils/scene';
 
@@ -58,6 +58,17 @@ export default function GeneratingScreen() {
           <>
             <BigButton label="आजीची आवडती गोष्ट ऐका" onPress={openLibraryStory} />
             <BigButton variant="secondary" label="माझ्या गोष्टी ऐका" onPress={() => router.replace('/stories')} />
+            {/* Test version only (never in the real app): start this month's count again. */}
+            {__DEV__ ? (
+              <BigButton
+                variant="secondary"
+                label="DEV: reset this month's count"
+                onPress={async () => {
+                  await subscriptionService.devResetUsage();
+                  retry();
+                }}
+              />
+            ) : null}
           </>
         }
       >

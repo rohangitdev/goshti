@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CATEGORIES, type StoryCategory } from '@engine/index';
@@ -15,6 +15,17 @@ export default function HomeScreen() {
   const { profile } = useChildProfile();
   useStoryWarmUp();
   const [category, setCategory] = useState<StoryCategory | null>(null);
+  // A quick tap on "पालक" only shows how to open it (press and hold) — a child's tap never opens it.
+  const [parentHint, setParentHint] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+  }, []);
+  const showParentHint = () => {
+    setParentHint(true);
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setParentHint(false), 3500);
+  };
   const chooseCategory = (id: StoryCategory) => {
     if (id !== category) uiSoundService.play('CATEGORY_SELECTED');
     setCategory(id);
@@ -52,20 +63,30 @@ export default function HomeScreen() {
             📚 माझ्या गोष्टी
           </AppText>
         </Pressable>
-        {/* Parent mode: long-press so a quick tap from a child doesn't open it. */}
+        {/* Parent mode: press and hold, so a quick tap from a child doesn't open it (a tap shows how). */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="पालकांसाठी, दाबून ठेवा"
           accessibilityHint="पालक विभाग उघडण्यासाठी दाबून ठेवा"
-          onLongPress={() => router.push('/parent')}
-          delayLongPress={1200}
-          style={styles.topLink}
+          onPress={showParentHint}
+          onLongPress={() => {
+            setParentHint(false);
+            router.push('/parent');
+          }}
+          delayLongPress={700}
+          hitSlop={8}
+          style={({ pressed }) => [styles.topLink, pressed && styles.pressed]}
         >
           <AppText variant="caption" muted>
             पालक ⚙︎
           </AppText>
         </Pressable>
       </View>
+      {parentHint ? (
+        <AppText variant="caption" muted style={styles.hint}>
+          पालकांसाठी: ⚙︎ बटण थोडा वेळ दाबून ठेवा
+        </AppText>
+      ) : null}
 
       <View style={styles.heading}>
         <AppText variant="caption" color={colors.primary}>
@@ -91,6 +112,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   topLink: { minHeight: 48, justifyContent: 'center', paddingHorizontal: spacing.xs },
+  pressed: { opacity: 0.5 },
+  hint: { textAlign: 'right' },
   heading: { gap: spacing.xs },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
 });
