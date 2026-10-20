@@ -37,7 +37,20 @@ function SetupForm({ initial, onSave: save }: FormProps) {
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <Screen scroll footer={<BigButton label="पुढे चला" onPress={onSave} disabled={!canSave} />}>
+      <Screen
+        scroll
+        footer={
+          <>
+            {/* Say what's missing instead of a silently disabled button. */}
+            {!canSave && !saving && name.trim() && age !== null && gender === null ? (
+              <AppText center muted>
+                मुलगा की मुलगी ते निवडा
+              </AppText>
+            ) : null}
+            <BigButton label="पुढे चला" onPress={onSave} disabled={!canSave} />
+          </>
+        }
+      >
         <BackButton />
         <View style={styles.section}>
           <AppText variant="title">तुझं नाव काय?</AppText>

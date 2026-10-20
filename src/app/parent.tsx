@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 
 import { BRAND } from '@/brand';
-import { AppText, BackButton, BigButton, ParentGate, PlanCard, Screen } from '@/components';
+import { AppText, BackButton, BigButton, GenderSelector, ParentGate, PlanCard, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
 import { useSubscription } from '@/hooks/useSubscription';
 import { feedbackService, PLANS, REACTIONS, subscriptionService, uiSoundService, type StoryReaction } from '@/services';
@@ -31,7 +31,7 @@ export default function ParentScreen() {
 }
 
 function ParentSettings() {
-  const { profile } = useChildProfile();
+  const { profile, save: saveProfile } = useChildProfile();
   const loadedSubscription = useSubscription();
   // Dev tools below can change the plan/usage; show their result immediately.
   const [devSubscription, setDevSubscription] = useState<Subscription | null>(null);
@@ -77,12 +77,39 @@ function ParentSettings() {
         </View>
       </View>
 
+      {/* Developers only — never in a production build. For testing limits and plans. */}
+      {__DEV__ && subscription ? (
+        <View style={[styles.card, styles.devCard]}>
+          <AppText variant="caption" muted>
+            DEV ONLY (not in the real app)
+          </AppText>
+          <BigButton
+            variant="secondary"
+            label="Reset this month's count"
+            onPress={async () => setDevSubscription(await subscriptionService.devResetUsage())}
+          />
+          <BigButton
+            variant="secondary"
+            label={subscription.plan === 'PLUS' ? 'Switch to FREE (5)' : 'Switch to PLUS (30)'}
+            onPress={async () => setDevSubscription(await subscriptionService.devSetPlan(subscription.plan === 'PLUS' ? 'FREE' : 'PLUS'))}
+          />
+        </View>
+      ) : null}
+
       {profile ? (
         <View style={styles.card}>
           <AppText variant="label">
             {profile.name} · {toMarathiDigits(profile.age)} वर्षं
           </AppText>
-          <BigButton variant="secondary" label="माहिती बदला" onPress={() => router.push('/setup')} />
+          {/* The child is the hero of new stories — Marathi needs boy or girl (गेला / गेली). */}
+          <AppText variant="caption" muted>
+            नव्या गोष्टींमध्ये {profile.name} मुख्य पात्र असतं. योग्य मराठी शब्दांसाठी (गेला / गेली) निवडा:
+          </AppText>
+          <GenderSelector
+            value={profile.gender ?? null}
+            onChange={(gender) => void saveProfile({ name: profile.name, age: profile.age, gender })}
+          />
+          <BigButton variant="secondary" label="नाव / वय बदला" onPress={() => router.push('/setup')} />
         </View>
       ) : null}
 
@@ -139,24 +166,6 @@ function ParentSettings() {
         दोन्ही प्लॅनमध्ये गोष्टींचा दर्जा आणि आजीचा आवाज सारखाच आहे; {BRAND.plusName} मध्ये फक्त नव्या गोष्टी जास्त मिळतात.
       </AppText>
 
-      {/* Developers only — never in a production build. For testing limits and plans. */}
-      {__DEV__ && subscription ? (
-        <View style={[styles.card, styles.devCard]}>
-          <AppText variant="caption" muted>
-            DEV ONLY (not in the real app)
-          </AppText>
-          <BigButton
-            variant="secondary"
-            label="Reset this month's count"
-            onPress={async () => setDevSubscription(await subscriptionService.devResetUsage())}
-          />
-          <BigButton
-            variant="secondary"
-            label={subscription.plan === 'PLUS' ? 'Switch to FREE (5)' : 'Switch to PLUS (30)'}
-            onPress={async () => setDevSubscription(await subscriptionService.devSetPlan(subscription.plan === 'PLUS' ? 'FREE' : 'PLUS'))}
-          />
-        </View>
-      ) : null}
 
       {subscription?.plan !== 'PLUS' ? (
         <View style={styles.actions}>
