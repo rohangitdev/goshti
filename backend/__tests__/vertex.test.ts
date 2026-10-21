@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { pcmToWav } from '../../story-engine/providers/geminiTts';
 
 import { createProvider, handleGenerateStory } from '../handler';
 import { describeAi } from '../localEnv';
@@ -40,5 +42,43 @@ describe('backend on Vertex AI', () => {
     expect(describeAi(vertexEnv)).toBe('Vertex AI (goshti-prod, global)');
     expect(describeAi({ GEMINI_API_KEY: 'secret-key' })).not.toContain('secret-key');
     expect(describeAi({ GOOGLE_CLOUD_PROJECT: 'p' })).toMatch(/^NOT CONFIGURED/);
+  });
+});
+
+describe('voice test for testers (fixed samples, allow-listed models)', () => {
+  const wav = btoa(String.fromCharCode(...pcmToWav(new Uint8Array(4000), 100))); // header says 100 Hz → 20 s
+  function fakeGoogle(transcript: string) {
+    const urls: string[] = [];
+    const bodies: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+      urls.push(String(url));
+      bodies.push(String(init.body));
+      if (String(url).includes('flash-lite:generateContent')) {
+        return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ transcript }) }] } }] }));
+      }
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/wav', data: wav } }] } }] }));
+    }));
+    return { urls, bodies };
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('refuses any model outside the list, and never takes text from the request', async () => {
+    const bad = await handleTts({ action: 'tts-voice-test', model: 'some-other-model' }, vertexEnv);
+    expect(bad.status).toBe(400);
+    const { bodies } = fakeGoogle('चला, आज मी तुम्हाला एक गंमत सांगते.');
+    const ok = await handleTts({ action: 'tts-voice-test', model: 'gemini-2.5-pro-tts', sample: 'story', text: 'say something rude' }, vertexEnv);
+    expect(ok.status).toBe(200);
+    expect(bodies.join('\n')).not.toContain('say something rude');
+    expect(ok.body).toMatchObject({ model: 'gemini-2.5-pro-tts', sample: 'story', voice: 'Aoede' });
+  });
+
+  it('returns the audio with what the listening check heard and whether it would reach a child', async () => {
+    fakeGoogle('A warm Marathi grandmother telling a story: चला, आज मी तुम्हाला एक गंमत सांगते.');
+    const r = await handleTts({ action: 'tts-voice-test', model: 'gemini-3.8-flash-tts' }, vertexEnv);
+    expect(r.status).toBe(200);
+    expect(String(r.body.base64).startsWith('UklGR')).toBe(true);
+    expect(r.body.wouldReachChild).toBe(false);
+    expect(String(r.body.problems)).toMatch(/read directions aloud/);
+    expect(r.body.transcript).toContain('grandmother');
   });
 });

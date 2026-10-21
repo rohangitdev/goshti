@@ -3,6 +3,8 @@
  *
  *   { action: "tts-voices" }                       → audition voices
  *   { action: "tts-audition", voice }              → fixed sample paragraph in that voice
+ *   { action: "tts-voice-test", model, voice, sample } → a FIXED sample with one speech model, plus
+ *                                                     what the listening check heard (for testers)
  *   { action: "tts-render", audioToken, chunk }    → one chunk of an APPROVED story
  *   { action: "library-voice", id, age }           → audio token for a built-in library story
  *
@@ -14,9 +16,10 @@
  */
 import { ProviderError } from '../story-engine/provider';
 import { googleAccessFromEnv, hasGoogleAccess, type GoogleEnv } from '../story-engine/providers/googleAccess';
-import { DEFAULT_TTS_VOICE, GeminiSpeechSynthesizer } from '../story-engine/providers/geminiTts';
+import { DEFAULT_TTS_MODEL, DEFAULT_TTS_VOICE, GeminiSpeechSynthesizer, VERTEX_TTS_FALLBACKS } from '../story-engine/providers/geminiTts';
 import { GeminiSpeechListener } from '../story-engine/providers/geminiListen';
-import { CheckedSpeechSynthesizer } from '../story-engine/speechCheck';
+import { CheckedSpeechSynthesizer, judgeDuration, judgeTranscript, spokenText, wavSeconds } from '../story-engine/speechCheck';
+import type { TtsChunk } from '../story-engine/tts';
 import { AUDITION_CHUNK, AUDITION_VOICES, buildTtsChunks, DEFAULT_AAJI_STYLE } from '../story-engine/tts';
 import { resolveAajiVoice, SynthesizerTTSProvider, type TTSProvider } from '../story-engine/ttsProvider';
 import { findLibraryStory, libraryAudioScript } from '../story-engine/library';
@@ -96,9 +99,52 @@ export function createTtsProvider(env: TtsEnv, log: (line: string) => void = con
   );
 }
 
+/** Speech models a voice test may try (nothing else is accepted). */
+export const VOICE_TEST_MODELS = [...new Set([DEFAULT_TTS_MODEL, ...VERTEX_TTS_FALLBACKS, 'gemini-2.5-pro-tts', 'gemini-3.1-flash-tts-preview'])];
+
+/** The two fixed samples a voice test renders — never text from a request. */
+export function voiceTestSample(name: unknown, env: TtsEnv): { name: 'audition' | 'story'; chunk: TtsChunk } {
+  if (name === 'story') {
+    const story = findLibraryStory('manu-red-ball');
+    if (story) return { name: 'story', chunk: chunksFor(libraryAudioScript(story, 6), env, 6)[0] };
+  }
+  return { name: 'audition', chunk: AUDITION_CHUNK };
+}
+
+/**
+ * One speech model on a fixed sample, WITHOUT the retry/fail of the listening check — so a
+ * tester hears exactly what that model makes and sees what the check would decide.
+ */
+async function voiceTest(b: { model?: unknown; sample?: unknown }, voice: string, env: TtsEnv) {
+  const model = typeof b.model === 'string' && VOICE_TEST_MODELS.includes(b.model) ? b.model : null;
+  if (!model) return { status: 400, body: { status: 'INVALID_REQUEST', errors: [`model must be one of: ${VOICE_TEST_MODELS.join(', ')}`] } };
+  const access = googleAccessFromEnv(env);
+  if (!access) return { status: 503, body: { status: 'FAILED', reason: 'text-to-speech is not configured (set up Vertex AI)' } };
+  const { name, chunk } = voiceTestSample(b.sample, env);
+  const t0 = Date.now();
+  const audio = await new GeminiSpeechSynthesizer({ access, model, fallbackModels: 'none' }).synthesize(chunk, voice);
+  const renderMs = Date.now() - t0;
+  const seconds = wavSeconds(audio.base64);
+  const problems = judgeDuration(chunk, seconds);
+  let transcript: string | null = null;
+  let heard: { ratio: number; englishWords: number } | null = null;
+  try {
+    transcript = await new GeminiSpeechListener({ access, model: env.TTS_CHECK_MODEL }).transcribe(audio);
+    const v = judgeTranscript(spokenText(chunk), transcript);
+    problems.push(...v.problems);
+    heard = { ratio: v.ratio, englishWords: v.englishWords };
+  } catch (e) {
+    problems.push(`could not listen: ${(e as Error).message}`);
+  }
+  return {
+    status: 200,
+    body: { voice, sample: name, ...audio, seconds, renderMs, transcript, heard, problems, wouldReachChild: problems.length === 0 },
+  };
+}
+
 export function isTtsAction(body: unknown): boolean {
   const a = (body as { action?: unknown } | null)?.action;
-  return a === 'tts-voices' || a === 'tts-audition' || a === 'tts-render' || a === 'library-voice';
+  return a === 'tts-voices' || a === 'tts-audition' || a === 'tts-voice-test' || a === 'tts-render' || a === 'library-voice';
 }
 
 export async function handleTts(
@@ -106,7 +152,16 @@ export async function handleTts(
   env: TtsEnv,
   log?: (line: string) => void,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const b = (body ?? {}) as { action?: string; voice?: unknown; audioToken?: unknown; chunk?: unknown; id?: unknown; age?: unknown };
+  const b = (body ?? {}) as {
+    action?: string;
+    voice?: unknown;
+    audioToken?: unknown;
+    chunk?: unknown;
+    id?: unknown;
+    age?: unknown;
+    model?: unknown;
+    sample?: unknown;
+  };
   const voice = resolveAajiVoice(b.voice, env.TTS_VOICE || DEFAULT_TTS_VOICE);
 
   if (b.action === 'library-voice') {
@@ -126,6 +181,7 @@ export async function handleTts(
 
   try {
     const tts = createTtsProvider(env, log);
+    if (b.action === 'tts-voice-test') return await voiceTest(b, voice, env);
     if (b.action === 'tts-audition') {
       const t0 = Date.now();
       const audio = await tts.synthesizeScene(AUDITION_CHUNK, voice);

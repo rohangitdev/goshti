@@ -1,0 +1,62 @@
+# Aaji voice test, run from GitHub (no Mac): renders two FIXED samples with each speech model
+# through the live story backend, reports what the listening check heard, and saves the audio
+# on the `voice-tests` branch (replaced each run) so it can be played on a phone.
+name: Voice test
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: Speech models to compare (comma-separated)
+        default: gemini-3.8-flash-tts,gemini-3.8-flash-lite-tts,gemini-2.5-flash-tts,gemini-2.5-pro-tts
+      voice:
+        description: Aaji's prebuilt voice
+        default: Aoede
+
+permissions:
+  contents: write
+
+jobs:
+  voice-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: okcoskjdspwqnvcilbsf
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Render and listen
+        env:
+          MODELS: ${{ inputs.models }}
+          VOICE: ${{ inputs.voice }}
+        run: |
+          export SUPABASE_ACCESS_TOKEN=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -oE 'sbp_[A-Za-z0-9_]{20,}' | head -n 1 || true)
+          supabase projects api-keys --project-ref "$PROJECT_REF" -o json > "$RUNNER_TEMP/keys.json"
+          anon=$(jq -r '.[] | select(.name == "anon") | .api_key' "$RUNNER_TEMP/keys.json" | head -n 1)
+          rm -f "$RUNNER_TEMP/keys.json"
+          if [ -z "$anon" ] || [ "$anon" = "null" ]; then echo "::error::Could not read the Supabase anon key."; exit 1; fi
+          echo "::add-mask::$anon"
+          export SUPABASE_ANON_KEY="$anon"
+          export STORY_API_URL="https://$PROJECT_REF.supabase.co/functions/v1/generate-story"
+          node scripts/voice-test-remote.mjs "$RUNNER_TEMP/voice-tests"
+          cat "$RUNNER_TEMP/voice-tests/summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Make phone-friendly copies
+        run: |
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null)
+          cd "$RUNNER_TEMP/voice-tests"
+          for f in *.wav; do [ -e "$f" ] && ffmpeg -v error -y -i "$f" -c:a aac -b:a 96k "${f%.wav}.m4a" && rm "$f"; done
+          ls -la
+      - name: Save on the voice-tests branch
+        run: |
+          cd "$RUNNER_TEMP/voice-tests"
+          git init -q && git checkout -q -b voice-tests
+          git add -A
+          git -c user.name="goshti-voice-test" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -qm "Voice test: ${{ inputs.voice }} — $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git push -fq "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" voice-tests
+          echo "::notice title=Voice test saved::branch voice-tests"
