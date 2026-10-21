@@ -1,0 +1,107 @@
+# Every push to main that changes the app: publish a TEST version to Expo's update service, so
+# Rohan opens the newest GOSHTI in Expo Go on his phone — no Mac, no `npx expo start`.
+#
+# Needs one more secret: EXPO_TOKEN (expo.dev → Account settings → Access tokens).
+# The Supabase anon key is read from Supabase with SUPABASE_ACCESS_TOKEN at publish time and
+# masked — it is never committed (this repository is public).
+#
+# Open it: sign in to Expo Go with the same Expo account → Projects → goshti → preview.
+name: Publish test app to phone
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'story-engine/**'
+      - 'app.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'eas.json'
+      - '.github/workflows/app-update.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: app-update
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish to Expo Go (preview)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: okcoskjdspwqnvcilbsf
+    steps:
+      - name: Are the tokens set?
+        id: tokens
+        run: |
+          if [ -z "$(printf '%s' "$EXPO_TOKEN" | tr -d '[:space:]')" ]; then
+            echo "::notice::Not published: add the EXPO_TOKEN secret to publish test versions to the phone."
+            exit 0
+          fi
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        if: steps.tokens.outputs.ok == 'true'
+      - uses: actions/setup-node@v5
+        if: steps.tokens.outputs.ok == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        if: steps.tokens.outputs.ok == 'true'
+        with:
+          version: latest
+      - run: npm ci
+        if: steps.tokens.outputs.ok == 'true'
+      - name: Check before publishing (typecheck and tests)
+        if: steps.tokens.outputs.ok == 'true'
+        run: npm run typecheck && npm test
+
+      - name: Link the Expo project (first time only)
+        if: steps.tokens.outputs.ok == 'true'
+        run: |
+          export EXPO_TOKEN=$(printf '%s' "$EXPO_TOKEN" | tr -d '[:space:]')
+          has_id() { node -e "process.exit(require('./app.json').expo.extra?.eas?.projectId ? 0 : 1)"; }
+          if ! has_id; then
+            if ! npx eas-cli@latest init --non-interactive --force > "$RUNNER_TEMP/init.log" 2>&1; then
+              echo "::error title=Expo project not linked::$(tail -n 15 "$RUNNER_TEMP/init.log" | sed ':a;N;$!ba;s/\n/%0A/g')"
+              exit 1
+            fi
+          fi
+          # updates.url follows the project id (eas update needs it)
+          node -e "
+            const fs = require('fs'); const p = 'app.json'; const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            const id = j.expo.extra?.eas?.projectId; if (!id) { console.error('no EAS project id'); process.exit(1); }
+            j.expo.updates = { ...(j.expo.updates || {}), url: 'https://u.expo.dev/' + id };
+            fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
+            console.log('::notice title=Expo project::owner=' + (j.expo.owner || '?') + ' projectId=' + id);
+          "
+
+      - name: Publish the test version
+        if: steps.tokens.outputs.ok == 'true'
+        run: |
+          set -o pipefail
+          export EXPO_TOKEN=$(printf '%s' "$EXPO_TOKEN" | tr -d '[:space:]')
+          export SUPABASE_ACCESS_TOKEN=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -oE 'sbp_[A-Za-z0-9_]{20,}' | head -n 1 || true)
+          # The app's PUBLIC settings. The anon key comes from Supabase and is masked in all logs.
+          supabase projects api-keys --project-ref "$PROJECT_REF" -o json > "$RUNNER_TEMP/keys.json"
+          anon=$(jq -r '.[] | select(.name == "anon") | .api_key' "$RUNNER_TEMP/keys.json" | head -n 1)
+          rm -f "$RUNNER_TEMP/keys.json"
+          if [ -z "$anon" ] || [ "$anon" = "null" ]; then echo "::error::Could not read the Supabase anon key."; exit 1; fi
+          echo "::add-mask::$anon"
+          export EXPO_PUBLIC_SUPABASE_URL="https://$PROJECT_REF.supabase.co"
+          export EXPO_PUBLIC_SUPABASE_ANON_KEY="$anon"
+          export EXPO_PUBLIC_DEFAULT_PLAN=PLUS
+          export EXPO_PUBLIC_TEST_TOOLS=true
+          msg=$(git log -1 --pretty=%s | cut -c 1-120)
+          if ! npx eas-cli@latest update --channel preview --environment preview --message "$msg" --json --non-interactive > "$RUNNER_TEMP/update.json" 2> "$RUNNER_TEMP/update.err"; then
+            echo "::error title=Publish failed::$(tail -n 15 "$RUNNER_TEMP/update.err" | sed ':a;N;$!ba;s/\n/%0A/g')"
+            exit 1
+          fi
+          id=$(node -e "console.log(require('./app.json').expo.extra.eas.projectId)")
+          group=$(jq -r '.[0].group // empty' "$RUNNER_TEMP/update.json")
+          echo "::notice title=Open in Expo Go::exp://u.expo.dev/$id?channel-name=preview  (update group $group)"

@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { isStoryCategory, type StoryMode } from '@engine/index';
 import { AajiIllustration, AppText, BigButton, Screen } from '@/components';
+import { config } from '@/config';
 import { useStoryGeneration } from '@/hooks/useStoryGeneration';
 import { subscriptionService, uiSoundService } from '@/services';
 import { colors } from '@/theme';
@@ -58,11 +59,11 @@ export default function GeneratingScreen() {
           <>
             <BigButton label="आजीची आवडती गोष्ट ऐका" onPress={openLibraryStory} />
             <BigButton variant="secondary" label="माझ्या गोष्टी ऐका" onPress={() => router.replace('/stories')} />
-            {/* Test version only (never in the real app): start this month's count again. */}
-            {__DEV__ ? (
+            {/* Test versions only (never in the real app): start this month's count again. */}
+            {config.testTools ? (
               <BigButton
                 variant="secondary"
-                label="DEV: reset this month's count"
+                label="TEST: reset this month's count"
                 onPress={async () => {
                   await subscriptionService.devResetUsage();
                   retry();
@@ -135,8 +136,8 @@ export default function GeneratingScreen() {
           <AppText variant="heading" center>
             अरेच्चा! आजीला गोष्ट आठवली नाही. पुन्हा प्रयत्न करूया?
           </AppText>
-          {/* Developers only: the technical reason (never shown in production builds). */}
-          {__DEV__ && state.reason ? (
+          {/* Test versions only: the technical reason (never shown in a store build). */}
+          {config.testTools && state.reason ? (
             <AppText variant="caption" muted center selectable>
               {state.reason}
             </AppText>

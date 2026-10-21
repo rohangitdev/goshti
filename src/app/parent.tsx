@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 
 import { BRAND } from '@/brand';
+import { config } from '@/config';
 import { AppText, BackButton, BigButton, GenderSelector, ParentGate, PlanCard, Screen } from '@/components';
 import { useChildProfile } from '@/hooks/useChildProfile';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -77,11 +78,11 @@ function ParentSettings() {
         </View>
       </View>
 
-      {/* Developers only — never in a production build. For testing limits and plans. */}
-      {__DEV__ && subscription ? (
+      {/* Test versions only — never in a store build. For testing limits and plans. */}
+      {config.testTools && subscription ? (
         <View style={[styles.card, styles.devCard]}>
           <AppText variant="caption" muted>
-            DEV ONLY (not in the real app)
+            TEST VERSION ONLY (not in the real app)
           </AppText>
           <BigButton
             variant="secondary"

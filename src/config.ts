@@ -45,4 +45,10 @@ export const config = {
    * FREE limit of 5; the store build uses FREE. Set by eas.json (EXPO_PUBLIC_DEFAULT_PLAN).
    */
   defaultPlan: (process.env.EXPO_PUBLIC_DEFAULT_PLAN === 'PLUS' ? 'PLUS' : 'FREE') as 'FREE' | 'PLUS',
+  /**
+   * Tester tools (reset this month's count, switch plan, technical error reasons): in development,
+   * and in the test versions published to the phone (EXPO_PUBLIC_TEST_TOOLS=true). Never in a
+   * store build.
+   */
+  testTools: __DEV__ || process.env.EXPO_PUBLIC_TEST_TOOLS === 'true',
 };

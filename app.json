@@ -41,6 +41,7 @@
     "scheme": "goshti",
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "runtimeVersion": "exposdk:57.0.0"
   }
 }
