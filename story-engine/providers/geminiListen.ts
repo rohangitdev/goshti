@@ -36,7 +36,8 @@ export class GeminiSpeechListener implements SpeechListener {
   async transcribe(audio: { base64: string; mimeType: string }): Promise<string> {
     const model = this.config.model || DEFAULT_LISTEN_MODEL;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const generationConfig: Record<string, unknown> = { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 4096 };
+      // Marathi transcripts of a long part need room (Devanagari costs many tokens).
+      const generationConfig: Record<string, unknown> = { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 12288 };
       if (this.thinkingSupported) generationConfig.thinkingConfig = { thinkingLevel: 'minimal' };
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.config.timeoutMs ?? 40_000);
