@@ -42,6 +42,15 @@
     "experiments": {
       "typedRoutes": true
     },
-    "runtimeVersion": "exposdk:57.0.0"
+    "runtimeVersion": "exposdk:57.0.0",
+    "owner": "rohan287dev",
+    "extra": {
+      "eas": {
+        "projectId": "57816001-1e5c-49d5-8847-2f98ca66c923"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/57816001-1e5c-49d5-8847-2f98ca66c923"
+    }
   }
 }
