@@ -1,0 +1,37 @@
+# Which optional backend settings are set in Supabase — names only. For Aaji's voice and speech
+# model it compares fingerprints (Supabase stores a SHA-256 of each value) with known names, so no
+# value is ever shown.
+name: Backend settings check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: okcoskjdspwqnvcilbsf
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: List settings
+        run: |
+          export SUPABASE_ACCESS_TOKEN=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | grep -oE 'sbp_[A-Za-z0-9_]{20,}' | head -n 1 || true)
+          supabase secrets list --project-ref "$PROJECT_REF" -o json > "$RUNNER_TEMP/s.json"
+          names=$(jq -r '[.[].name] | join(", ")' "$RUNNER_TEMP/s.json")
+          echo "::notice title=Settings set in Supabase::$names"
+          for key in TTS_VOICE TTS_MODEL TTS_FALLBACK_MODEL GEMINI_MODEL; do
+            digest=$(jq -r --arg k "$key" '.[] | select(.name == $k) | .value' "$RUNNER_TEMP/s.json")
+            [ -n "$digest" ] || { echo "::notice title=$key::not set (the code's default is used)"; continue; }
+            match="unknown value"
+            for v in Aoede Sulafat Vindemiatrix Gacrux Achernar Kore \
+                     gemini-3.8-flash-tts gemini-3.8-flash-lite-tts gemini-2.5-flash-tts gemini-2.5-pro-tts gemini-3.1-flash-tts-preview \
+                     gemini-3.5-flash gemini-3.5-flash-lite gemini-3.8-flash "" none; do
+              [ "$(printf '%s' "$v" | sha256sum | cut -d' ' -f1)" = "$digest" ] && { match="= ${v:-(empty)}"; break; }
+            done
+            echo "::notice title=$key::set, $match"
+          done
+          rm -f "$RUNNER_TEMP/s.json"
