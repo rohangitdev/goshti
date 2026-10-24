@@ -24,4 +24,6 @@ a lifting ending) and an 8-bar flute waiting loop:
 ffmpeg -i assets/audio/signature/goshti-waiting-song.m4a -ac 1 -ar 44100 song.wav
 cd scripts/audio && python3 waiting_flute.py ../../song.wav ../..     # needs numpy, scipy, soundfile
 ```
-All melodies are written for GOSHTI; nothing is taken from existing music.
+`TUNE=canon` (default): the opening and the long-wait loop play Pachelbel's Canon (c. 1700, public
+domain), arranged for flute over its own chords. `TUNE=original`: a melody written for GOSHTI. The
+flute parts inside the song are written for Rohan's song. No recordings or samples are used.

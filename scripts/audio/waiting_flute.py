@@ -1,6 +1,12 @@
-"""GOSHTI waiting song + an ORIGINAL bansuri-style flute part, and a new flute waiting loop.
+"""GOSHTI waiting song + a bansuri-style flute part, and a flute waiting loop.
 
-    python3 scripts/audio/waiting_flute.py song.wav OUT_DIR
+    python3 scripts/audio/waiting_flute.py song.wav OUT_DIR            # TUNE=canon (default)
+    TUNE=original python3 scripts/audio/waiting_flute.py song.wav OUT_DIR
+
+TUNE=canon: the opening and the long-wait loop play Pachelbel's Canon (c. 1700, public domain),
+arranged here for flute over its own chords in E-flat. TUNE=original: a melody written for GOSHTI.
+The flute parts inside the song (reply after line 1, lift under line 3, ending) are written for
+Rohan's song and are the same for both.
 
 song.wav = the current waiting song (Rohan's sung song with its accompaniment, E-flat), mono 44.1 kHz.
 Writes OUT_DIR/waiting-song-flute.wav (a 3.2 s flute opening, a reply after line 1, a rising
@@ -8,6 +14,7 @@ counter-melody under line 3, a lifting ending) and OUT_DIR/waiting-loop-flute.wa
 I–IV–V–I twice, seamless). Every melody here is written for GOSHTI — nothing is taken from
 existing music.
 """
+import os
 import sys
 
 import numpy as np
@@ -41,7 +48,9 @@ def pad(freqs, dur, a=1.2, r=1.5):
 
 
 def add(dst, src, at, g=1.0):
-    s = int(at * FS); e = min(len(dst), s + len(src)); dst[s:e] += src[:e - s] * g
+    s = int(at * FS); e = min(len(dst), s + len(src))
+    if e > s:
+        dst[s:e] += src[:e - s] * g
 
 
 def tanpura(dst, start, end):
@@ -72,9 +81,27 @@ mix = np.zeros(int(total * FS))
 add(mix, song, INTRO)
 
 # a quiet bed under the opening, fading as the song's own music comes in
+TUNE = os.environ.get('TUNE', 'canon')
+# Pachelbel's ground, in E-flat: one chord per beat (bass note, triad)
+CANON = [(51, (63, 67, 70)), (46, (58, 62, 65)), (48, (60, 63, 67)), (43, (55, 58, 62)),
+         (44, (56, 60, 63)), (39, (51, 55, 58)), (44, (56, 60, 63)), (46, (58, 62, 65))]
+
+
+def canon_bed(dst, start, beats, level=1.0):
+    """The Canon's chords: a plucked bass note and a soft chord on every beat."""
+    for i in range(beats):
+        bass, triad = CANON[i % 8]
+        at = start + i * BEAT
+        add(dst, pluck(hz(bass), 2.4, damp=0.9993, bright=0.4), at, 0.32 * level)
+        add(dst, pad([hz(m) for m in triad], BEAT * 1.6, a=0.18, r=0.7), at, 0.42 * level)
+
+
 bed = np.zeros(int((INTRO + 1.6) * FS))
-tanpura(bed, 0.0, INTRO)
-add(bed, pad([hz(m) for m in (Eb + 12, Eb + 16, Eb + 19)], INTRO + 1.4, a=1.0, r=1.2), 0.0, 0.5)
+if TUNE == 'canon':
+    canon_bed(bed, 0.0, 4)
+else:
+    tanpura(bed, 0.0, INTRO)
+    add(bed, pad([hz(m) for m in (Eb + 12, Eb + 16, Eb + 19)], INTRO + 1.4, a=1.0, r=1.2), 0.0, 0.5)
 fade = np.clip((INTRO + 1.2 - np.arange(len(bed)) / FS) / 1.2, 0, 1)
 bed *= fade
 vocal_level = rms(song)
@@ -82,8 +109,9 @@ add(mix, bed / rms(bed) * vocal_level * 10 ** (-10 / 20), 0.0)
 
 # flute phrases: (time in the SONG, notes, beat length, loudness vs the singing in dB)
 parts = [
-    # opening, before the first line; slides down to Eb and holds it until the girl starts singing
-    (-INTRO + 0.15, [n('G5', 1), n('Bb5', 0.5), n('Ab5', 0.5), n('G5', 1), n('Eb5', 1.3, 'slide')], BEAT, -4),
+    # opening, before the first line (canon: the Canon's first phrase, resolving to Eb as she sings)
+    (-INTRO + 0.15, [n('G5', 1), n('F5', 1), n('Eb5', 1), n('D5', 1), n('Eb5', 0.9, 'slide')] if TUNE == 'canon'
+     else [n('G5', 1), n('Bb5', 0.5), n('Ab5', 0.5), n('G5', 1), n('Eb5', 1.3, 'slide')], BEAT, -4),
     # a small reply after line 1, landing on F as the chord moves to B-flat
     (4.6, [n('Bb5', 0.25), n('Ab5', 0.2), n('G5', 0.2), n('F5', 0.6, 'slide')], 1.0, -7),
     # line 3: a slow rising counter-melody above the held G, then a run down into line 4
@@ -102,7 +130,9 @@ sf.write(f'{out_dir}/waiting-song-flute.wav', mix, FS)
 print(f'song with flute: {len(mix) / FS:.1f}s')
 
 # ---------------------------------------------------------------------------------------------
-# 2. The waiting loop: tanpura + chords (Eb | Ab | Bb | Eb, twice) + an 8-bar flute melody
+# 2. The waiting loop (25.6 s, seamless)
+#    canon:    the Canon's ground (8 chords, 4 times) with four flute variations
+#    original: tanpura + chords (Eb | Ab | Bb | Eb, twice) + an 8-bar melody written for GOSHTI
 # ---------------------------------------------------------------------------------------------
 BAR = 4 * BEAT
 LOOP = 8 * BAR  # 25.6 s
@@ -121,18 +151,37 @@ melody = [
 ]
 assert abs(sum(x[1] for x in melody) - 32) < 1e-9, 'melody must fill 8 bars'
 
+# Pachelbel's Canon, the violin's first three entries and the second again an octave higher
+# (one note per chord = 1 beat; the third is in half-beats). Each line is one breath.
+canon_lines = [
+    [n('G5', 1), n('F5', 1), n('Eb5', 1), n('D5', 1), n('C5', 1), n('Bb4', 1), n('C5', 1), n('D5', .8), (None, .2)],
+    [n('Eb5', 1), n('D5', 1), n('C5', 1), n('Bb4', 1), n('Ab4', 1), n('G4', 1), n('Ab4', 1), n('F4', .8), (None, .2)],
+    [n('Eb5', .5), n('G5', .5), n('Bb5', .5), n('Ab5', .5), n('G5', .5), n('Eb5', .5), n('G5', .5), n('F5', .5),
+     n('Eb5', .5), n('C5', .5), n('Eb5', .5), n('Bb4', .5), n('Ab4', .5), n('C5', .5), n('Bb4', .5), n('Ab4', .3), (None, .2)],
+    [n('Eb6', 1), n('D6', 1), n('C6', 1), n('Bb5', 1), n('Ab5', 1), n('G5', 1), n('Ab5', 1), n('F5', .8, 'slide'), (None, .2)],
+]
+assert all(abs(sum(x[1] for x in line) - 8) < 1e-9 for line in canon_lines), 'each Canon line fills 8 beats'
+
 length = LOOP + XF + 4.0
 y = np.zeros(int(length * FS))
-tanpura(y, 0.0, length - 1)
-chords = [[Eb + 12, Eb + 16, Eb + 19], [Ab + 12, Ab + 16, Ab + 7], [Bb + 12, Bb + 16, Bb + 19], [Eb + 12, Eb + 16, Eb + 19]]
-k, t0 = 0, 0.0
-while t0 < length - 1:
-    add(y, pad([hz(m) for m in chords[k % 4]], BAR + 1.6), t0 - 0.8 if t0 > 0 else 0, 0.5)
-    t0 += BAR; k += 1
-bed_level = rms(y)
-flute = render(melody, beat=BEAT, seed=7)
-for start in (0.0, LOOP):  # second copy so the loop point crossfades into the same notes
-    add(y, flute / rms(flute) * bed_level * 10 ** (4 / 20), start)
+if TUNE == 'canon':
+    canon_bed(y, 0.0, int((length - 1) / BEAT))
+    bed_level = rms(y)
+    # keep going past the loop point, so it crossfades into the same notes
+    for k in range(int(np.ceil(length / (8 * BEAT)))):
+        f = render(canon_lines[k % 4], beat=BEAT, seed=40 + k % 4)
+        add(y, f / rms(f) * bed_level * 10 ** (5 / 20), k * 8 * BEAT)
+else:
+    tanpura(y, 0.0, length - 1)
+    chords = [[Eb + 12, Eb + 16, Eb + 19], [Ab + 12, Ab + 16, Ab + 7], [Bb + 12, Bb + 16, Bb + 19], [Eb + 12, Eb + 16, Eb + 19]]
+    k, t0 = 0, 0.0
+    while t0 < length - 1:
+        add(y, pad([hz(m) for m in chords[k % 4]], BAR + 1.6), t0 - 0.8 if t0 > 0 else 0, 0.5)
+        t0 += BAR; k += 1
+    bed_level = rms(y)
+    flute = render(melody, beat=BEAT, seed=7)
+    for start in (0.0, LOOP):  # second copy so the loop point crossfades into the same notes
+        add(y, flute / rms(flute) * bed_level * 10 ** (4 / 20), start)
 
 N, X = int(LOOP * FS), int(XF * FS)
 loop = y[:N].copy()
